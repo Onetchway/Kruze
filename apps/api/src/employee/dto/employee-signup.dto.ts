@@ -12,9 +12,12 @@ export class EmployeeSignupDto {
   @IsString()
   phone!: string;
 
-  @IsOptional()
   @IsEmail()
-  email?: string;
+  email!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
 
   @IsOptional()
   @IsString()

@@ -1,6 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Mobile apps are Expo/React Native projects managed with npm, not pnpm —
+  # excluded from this workspace so `pnpm install` at the root never touches
+  # their node_modules/lockfile.
+  - "!apps/employee-app"
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

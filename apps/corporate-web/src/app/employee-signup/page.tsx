@@ -8,6 +8,7 @@ export default function EmployeeSignupPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [department, setDepartment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -22,7 +23,8 @@ export default function EmployeeSignupPage() {
         globalOrgId,
         fullName,
         phone,
-        email: email || undefined,
+        email,
+        password,
         department: department || undefined,
       });
       setSubmitted(true);
@@ -39,8 +41,8 @@ export default function EmployeeSignupPage() {
         <h2 style={{ marginTop: 0 }}>Request transport access</h2>
         {submitted ? (
           <p>
-            Your request has been submitted. Your employer&rsquo;s transport admin will review it — you&rsquo;ll be able
-            to use the service once approved.
+            Your request has been submitted. Your employer&rsquo;s transport admin will review it — once approved,
+            sign in to the Kruze Employee app with the email and password you just set.
           </p>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -62,8 +64,21 @@ export default function EmployeeSignupPage() {
               <input value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+91..." />
             </div>
             <div className="field">
-              <label>Email (optional)</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label>Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="field">
+              <label>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+              <p style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 0 }}>
+                Used to sign in to the Kruze Employee mobile app once approved.
+              </p>
             </div>
             <div className="field">
               <label>Department (optional)</label>

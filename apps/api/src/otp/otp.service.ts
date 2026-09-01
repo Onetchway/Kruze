@@ -30,6 +30,12 @@ export class OtpService {
     if (tripEmployee.trip.corporateOrgId !== actor.organisationId && tripEmployee.trip.vendorOrgId !== actor.organisationId) {
       throw new ForbiddenException("Not a party to this trip");
     }
+    if (actor.role === "EMPLOYEE") {
+      const ownEmployee = await this.prisma.employee.findUnique({ where: { userId: actor.userId } });
+      if (ownEmployee?.id !== tripEmployee.employeeId) {
+        throw new ForbiddenException("An employee may only generate their own pickup/drop OTP");
+      }
+    }
 
     const code = String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
     const codeHash = await argon2.hash(code, { type: argon2.argon2id });

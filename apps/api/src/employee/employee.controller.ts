@@ -61,6 +61,19 @@ export class EmployeeController {
     return this.employees.listForCorporate(user.organisationId);
   }
 
+  /** The Employee mobile app's own identity — must be registered before ":id" or it never matches. */
+  @Get("me")
+  @UseGuards(JwtAuthGuard)
+  getOwnProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.employees.getOwnProfile(user);
+  }
+
+  @Get("me/trips/today")
+  @UseGuards(JwtAuthGuard)
+  myTripsToday(@CurrentUser() user: AuthenticatedUser) {
+    return this.employees.myTripsToday(user);
+  }
+
   @Get(":id")
   @UseGuards(JwtAuthGuard)
   get(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {

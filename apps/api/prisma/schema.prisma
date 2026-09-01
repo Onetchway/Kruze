@@ -38,6 +38,7 @@ model User {
   auditLogsAsActor      AuditLog[]
   relationshipsInvited  OrganisationRelationship[] @relation("RelationshipCreatedBy")
   relationshipsApproved OrganisationRelationship[] @relation("RelationshipApprovedBy")
+  employeeProfile       Employee?
 
   @@map("users")
 }
@@ -675,6 +676,12 @@ model Zone {
 model Employee {
   id             String   @id @default(uuid())
   corporateOrgId String
+  /// Links this employee record to its login account, set at self-signup.
+  /// The account can authenticate immediately, but only gains an
+  /// EMPLOYEE-role OrganisationMembership (and therefore an actual
+  /// session) once the corporate approves the signup — see
+  /// employee.service.ts.
+  userId         String?  @unique
   employeeCode   String
   fullName       String
   /// Self-declared, optional; used only where a corporate's safety policy
@@ -694,6 +701,7 @@ model Employee {
 
   organisation Organisation @relation(fields: [corporateOrgId], references: [id])
   shift        Shift?       @relation(fields: [shiftId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
 
   rosterEntries RosterEntry[]
   tripEmployees TripEmployee[]

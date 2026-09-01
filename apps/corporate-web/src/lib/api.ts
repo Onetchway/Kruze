@@ -285,7 +285,7 @@ export const api = {
     >,
   ) => apiFetch<CorporateSettings>("/corporate/settings", { method: "PUT", body: input, token }),
 
-  employeeSignup: (input: { globalOrgId: string; fullName: string; phone: string; email?: string; department?: string }) =>
+  employeeSignup: (input: { globalOrgId: string; fullName: string; phone: string; email: string; password: string; department?: string }) =>
     apiFetch<Employee>("/employees/signup", { method: "POST", body: input }),
   listPendingEmployees: (token: string) => apiFetch<Employee[]>("/employees/pending", { token }),
   approveEmployeeSignup: (token: string, id: string, employeeCode?: string) =>

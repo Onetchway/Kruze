@@ -155,13 +155,29 @@ required beyond `realtime` itself.
   channel on top for connected browsers. A genuine broker-backed backbone
   (spec §16) is still future work once real infrastructure exists.
 
+**`apps/employee-app`**: Expo/React Native (see its own README for setup
+and how it was verified without a simulator). Request transport access →
+sign in → today's trip(s), live-updated over `realtime` → generate a
+pickup/drop OTP code to show the driver. Required a real backend
+addition, not just a new client: `Employee` previously had no login at
+all — `Employee.userId` now links a signup to a `User` created
+immediately at signup, with an `EMPLOYEE`-role `OrganisationMembership`
+(and therefore an actual session) granted only once the corporate
+approves — see `employee.service.ts` and
+`test/employee-login.e2e-spec.ts`. `otp.service.ts`'s `generate()` also
+now restricts an `EMPLOYEE` actor to their own `tripEmployeeId`, so one
+employee can't pull another's pickup code. Managed with npm (excluded
+from the pnpm workspace) since Expo/React Native expects its own
+lockfile/`node_modules` layout.
+
 Not yet built: a dedicated Operator/Vendor Web (Vendor/Fleet Operator
-accounts currently use `corporate-web`'s shared shell), the Employee/
-Driver/Guard mobile apps, a genuine VRP/OR-Tools optimizer (`planning` is
-still a heuristic, not an exact solver — see `planning` above), HRMS/SSO
-integrations, and independent security hardening beyond the audit already
-done in this repo (VAPT, load testing) — see §17–21 of the specs for that
-scope.
+accounts currently use `corporate-web`'s shared shell), Driver/Guard
+mobile apps (same pattern as `employee-app`, but `Driver`/`Guard` have no
+`userId` link yet — not built in this pass), a genuine VRP/OR-Tools
+optimizer (`planning` is still a heuristic, not an exact solver — see
+`planning` above), HRMS/SSO integrations, and independent security
+hardening beyond the audit already done in this repo (VAPT, load
+testing) — see §17–21 of the specs for that scope.
 
 ## Getting started
 
