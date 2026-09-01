@@ -92,6 +92,21 @@ export interface Trip {
   scheduledStartAt: string;
 }
 
+export interface Vehicle {
+  id: string;
+  globalVehicleId: string;
+  registrationNo: string;
+  make: string | null;
+  model: string | null;
+  vehicleType: string | null;
+  capacity: number | null;
+  fuelType: string | null;
+  status: string;
+  isElectric: boolean;
+  batteryCapacityKwh: number | null;
+  rangeKm: number | null;
+}
+
 // --- API calls --------------------------------------------------------------
 
 export const api = {
@@ -128,4 +143,20 @@ export const api = {
   publishPlan: (token: string, planId: string) => apiFetch<TransportPlan>(`/plans/${planId}/publish`, { method: "POST", token }),
 
   listTrips: (token: string) => apiFetch<Trip[]>("/trips", { token }),
+
+  listVehicles: (token: string) => apiFetch<Vehicle[]>("/vehicles", { token }),
+  createVehicle: (
+    token: string,
+    input: {
+      registrationNo: string;
+      make?: string;
+      model?: string;
+      vehicleType?: string;
+      capacity?: number;
+      fuelType?: string;
+      isElectric?: boolean;
+      batteryCapacityKwh?: number;
+      rangeKm?: number;
+    },
+  ) => apiFetch<Vehicle>("/vehicles", { method: "POST", body: input, token }),
 };

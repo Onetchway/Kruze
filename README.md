@@ -80,12 +80,23 @@ live trip execution and commercial reconciliation:
     onboarding, invoice approval, manual overrides, etc., instead of a
     bespoke table per approval type.
 
-**`apps/corporate-web`**: Next.js (App Router) + TypeScript — the Corporate
-Portal, the first of the spec's application surfaces (§6/§16.1). Self-serve
-signup (creates organisation + admin membership + session in one call),
-shifts, employees with roster opt-in, and the automation-first Dashboard —
-generate a plan, see the same "N employees / N trips / N exceptions" summary
-and exception-review CTA the spec's UX section describes, then publish.
+**`apps/corporate-web`**: Next.js (App Router) + TypeScript. Despite the
+name it now serves three of the spec's account types from one app, since
+they share the same shell and the backend already enforces who can do
+what: at signup you pick **Corporate**, **Fleet Operator**, or **Vendor**,
+and the nav adapts —
+- Corporate: shifts, employees with roster opt-in, and the
+  automation-first Dashboard (generate a plan, see the same "N employees /
+  N trips / N exceptions" summary and exception-review CTA the spec's UX
+  section describes, then publish).
+- Fleet Operator / Vendor: **Fleet** — register vehicles (make/model/type/
+  capacity/fuel, with EV fields for battery range) against the org's own
+  fleet. They become eligible for auto-assignment once a corporate
+  connects the organisation and compliance/maintenance checks pass — the
+  same `vehicles` API the `driver`/`vehicle`/`guard` backend modules
+  expose, now with a UI in front of it.
+- Trips is visible to everyone; a corporate-only or fleet-only page tells
+  the other account type it isn't available rather than erroring.
 
 Not yet built: the remaining application surfaces (Admin Web, Operator/
 Vendor Web, Control Room, and the Employee/Driver/Guard mobile apps), a real

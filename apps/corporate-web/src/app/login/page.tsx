@@ -7,11 +7,18 @@ import { api, ApiError } from "@/lib/api";
 
 type Mode = "login" | "register";
 
+const ACCOUNT_TYPES = [
+  { value: "CORPORATE", label: "Corporate", hint: "Manage employees, roster and transport policy" },
+  { value: "FLEET_OPERATOR", label: "Fleet Operator", hint: "Manage fleet, drivers and multiple corporate customers" },
+  { value: "VENDOR", label: "Transport Vendor", hint: "Manage your fleet and drivers for corporates you serve" },
+];
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [organisationRole, setOrganisationRole] = useState("CORPORATE");
   const [organisationLegalName, setOrganisationLegalName] = useState("");
   const [organisationDisplayName, setOrganisationDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +57,7 @@ export default function LoginPage() {
         displayName,
         organisationLegalName,
         organisationDisplayName,
-        organisationRole: "CORPORATE",
+        organisationRole,
       });
       setSession({ accessToken: result.accessToken, organisationId: result.organisationId, role: result.role });
       router.replace("/dashboard");
@@ -64,10 +71,20 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="card login-card">
-        <h2 style={{ marginTop: 0 }}>{mode === "login" ? "Sign in" : "Create your corporate account"}</h2>
+        <h2 style={{ marginTop: 0 }}>{mode === "login" ? "Sign in" : "Create your account"}</h2>
         <form onSubmit={mode === "login" ? handleLogin : handleRegister}>
           {mode === "register" && (
             <>
+              <div className="field">
+                <label>Account type</label>
+                <select value={organisationRole} onChange={(e) => setOrganisationRole(e.target.value)}>
+                  {ACCOUNT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label} — {t.hint}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="field">
                 <label>Your name</label>
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
@@ -98,7 +115,7 @@ export default function LoginPage() {
         <p style={{ fontSize: 13, marginTop: 16 }}>
           {mode === "login" ? (
             <>
-              New corporate?{" "}
+              New here?{" "}
               <a href="#" onClick={(e) => { e.preventDefault(); setMode("register"); setError(null); }}>
                 Create an account
               </a>

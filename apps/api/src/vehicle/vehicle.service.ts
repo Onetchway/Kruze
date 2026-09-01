@@ -20,6 +20,9 @@ export class VehicleService {
       capacity?: number;
       fuelType?: string;
       ownershipType?: string;
+      isElectric?: boolean;
+      batteryCapacityKwh?: number;
+      rangeKm?: number;
     },
   ) {
     const existingCount = await this.prisma.vehicle.count();
@@ -34,6 +37,9 @@ export class VehicleService {
         vehicleType: input.vehicleType,
         capacity: input.capacity,
         fuelType: input.fuelType,
+        isElectric: input.isElectric ?? false,
+        batteryCapacityKwh: input.batteryCapacityKwh,
+        rangeKm: input.rangeKm,
         vendorRelationships: {
           create: {
             vendorOrgId,
