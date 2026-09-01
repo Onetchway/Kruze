@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
+import { ApiOperation } from "@nestjs/swagger";
 import { EmployeeService } from "./employee.service";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
 import { EmployeeSignupDto } from "./dto/employee-signup.dto";
@@ -19,6 +20,7 @@ export class EmployeeController {
 
   /** Public — a prospective employee names their employer by Kruze ID; no account required. */
   @Post("signup")
+  @ApiOperation({ security: [] })
   @Audited({ action: "EMPLOYEE_SIGNUP_REQUESTED", resourceType: "Employee" })
   selfSignup(@Body() dto: EmployeeSignupDto) {
     return this.employees.selfSignup(dto);

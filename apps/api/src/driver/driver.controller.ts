@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
+import { ApiOperation } from "@nestjs/swagger";
 import { DriverService } from "./driver.service";
 import { CreateDriverDto } from "./dto/create-driver.dto";
 import { ClaimDriverAccountDto } from "./dto/claim-driver-account.dto";
@@ -24,6 +25,7 @@ export class DriverController {
 
   /** Public: a driver already onboarded by a vendor sets up their own mobile login. */
   @Post("claim-account")
+  @ApiOperation({ security: [] })
   claimAccount(@Body() dto: ClaimDriverAccountDto) {
     return this.drivers.claimAccount(dto);
   }

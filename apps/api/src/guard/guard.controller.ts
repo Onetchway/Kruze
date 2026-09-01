@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
+import { ApiOperation } from "@nestjs/swagger";
 import { GuardService } from "./guard.service";
 import { CreateGuardDto } from "./dto/create-guard.dto";
 import { ClaimGuardAccountDto } from "./dto/claim-guard-account.dto";
@@ -24,6 +25,7 @@ export class GuardController {
 
   /** Public: a guard already onboarded by a vendor sets up their own mobile login. */
   @Post("claim-account")
+  @ApiOperation({ security: [] })
   claimAccount(@Body() dto: ClaimGuardAccountDto) {
     return this.guards.claimAccount(dto);
   }
