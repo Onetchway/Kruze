@@ -61,6 +61,10 @@ live trip execution and commercial reconciliation:
     persisted with policy version + context for audit.
   - `incident` — no-show, breakdown → eligible-replacement search, SOS, and
     general incident case management.
+  - `ev` — battery/SOC + charging-session log, range-aware eligibility
+    check (`rangeEligible`) for EV allocation.
+  - `maintenance` — preventive/repair records; an open blocking record
+    makes a vehicle ineligible for auto-assignment (wired into `planning`).
 
 **Enterprise**
   - `billing` — trip-charge computation from a contract's effective rate
@@ -68,6 +72,13 @@ live trip execution and commercial reconciliation:
     dispute/approval workflow.
   - `analytics` — corporate dashboard, vendor performance, compliance
     summary aggregate endpoints.
+  - `subscription` — Kruze ↔ organisation SaaS billing: plans as named
+    feature-key bundles, per-organisation entitlement overrides, usage
+    metering — kept separate from the corporate ↔ vendor `billing` module.
+  - `workflow` — one generic `ApprovalRequest` primitive (PENDING →
+    APPROVED/REJECTED/CANCELLED with actor + reason) reused across vendor
+    onboarding, invoice approval, manual overrides, etc., instead of a
+    bespoke table per approval type.
 
 Not yet built: the frontend/mobile apps (Next.js/React/Flutter per the
 spec), a real Kafka/WebSocket event backbone (the modules above call each

@@ -5,9 +5,10 @@ import { RosterModule } from "../roster/roster.module";
 import { ComplianceModule } from "../compliance/compliance.module";
 import { SafetyModule } from "../safety/safety.module";
 import { TripModule } from "../trip/trip.module";
+import { MaintenanceModule } from "../maintenance/maintenance.module";
 
 @Module({
-  imports: [RosterModule, ComplianceModule, SafetyModule, TripModule],
+  imports: [RosterModule, ComplianceModule, SafetyModule, TripModule, MaintenanceModule],
   providers: [PlanningService],
   controllers: [PlanningController],
   exports: [PlanningService],

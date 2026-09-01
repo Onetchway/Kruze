@@ -264,22 +264,101 @@ model DriverVendorRelationship {
 }
 
 model Vehicle {
-  id              String   @id @default(uuid())
-  globalVehicleId String   @unique
-  registrationNo  String   @unique
-  make            String?
-  model           String?
-  vehicleType     String?
-  capacity        Int?
-  fuelType        String?
-  status          String   @default("ACTIVE")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  globalVehicleId    String   @unique
+  registrationNo     String   @unique
+  make               String?
+  model              String?
+  vehicleType        String?
+  capacity           Int?
+  fuelType           String?
+  status             String   @default("ACTIVE")
+  /// EV attributes — null/ignored for non-EV fuel types.
+  isElectric         Boolean  @default(false)
+  batteryCapacityKwh Float?
+  rangeKm            Float?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   vendorRelationships VehicleVendorRelationship[]
   tripAssignments     TripAssignment[]
+  chargingSessions    ChargingSession[]
+  maintenanceRecords  MaintenanceRecord[]
 
   @@map("vehicles")
+}
+
+model ChargingSession {
+  id              String    @id @default(uuid())
+  vehicleId       String
+  startedAt       DateTime
+  endedAt         DateTime?
+  startSocPercent Float?
+  endSocPercent   Float?
+  energyKwh       Float?
+  cost            Decimal?  @db.Decimal(10, 2)
+  location        String?
+  createdAt       DateTime  @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, startedAt])
+  @@map("charging_sessions")
+}
+
+/// Latest known battery state — a small, frequently-updated row kept
+/// separate from the Vehicle identity record and from raw location/GPS
+/// history, mirroring how the spec treats SOC as live telemetry.
+model VehicleBatteryState {
+  vehicleId        String   @id
+  socPercent       Float
+  estimatedRangeKm Float?
+  chargingStatus   String   @default("IDLE")
+  recordedAt       DateTime @default(now())
+
+  @@map("vehicle_battery_states")
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance
+// ---------------------------------------------------------------------------
+
+enum MaintenanceType {
+  PREVENTIVE
+  REPAIR
+  TYRES
+  BATTERY
+  INSPECTION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model MaintenanceRecord {
+  id               String            @id @default(uuid())
+  vehicleId        String
+  type             MaintenanceType
+  status           MaintenanceStatus @default(SCHEDULED)
+  scheduledAt      DateTime?
+  completedAt      DateTime?
+  odometerKm       Float?
+  workshop         String?
+  cost             Decimal?          @db.Decimal(10, 2)
+  notes            String?
+  /// A vehicle with an open (SCHEDULED/IN_PROGRESS) blocking record is not
+  /// eligible for auto-assignment until this is COMPLETED or CANCELLED.
+  blocksDeployment Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId, status])
+  @@map("maintenance_records")
 }
 
 model VehicleVendorRelationship {
@@ -1157,4 +1236,103 @@ model InvoiceLine {
 
   @@index([invoiceId])
   @@map("invoice_lines")
+}
+
+// ---------------------------------------------------------------------------
+// SaaS subscription & entitlements (Kruze <-> Organisation billing — kept
+// separate from Corporate <-> Vendor operational billing above, per spec
+// §23: "Separate Kruze SaaS billing from Corporate-to-Vendor operational
+// billing.")
+// ---------------------------------------------------------------------------
+
+model SubscriptionPlan {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  /// Entitlements are feature/module based, never hard-coded by
+  /// organisation type — this is the plan's default feature set.
+  features  String[] @default([])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  organisationId   String             @unique
+  planId           String
+  status           SubscriptionStatus @default(TRIAL)
+  /// Per-organisation overrides/additions on top of the plan's feature set.
+  featureOverrides String[]           @default([])
+  startsAt         DateTime           @default(now())
+  endsAt           DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  usageRecords UsageRecord[]
+
+  @@map("subscriptions")
+}
+
+/// Periodic usage snapshot for metering (active employees, vehicles, GPS
+/// devices, completed trips, cities, ...). One row per organisation per
+/// period; billing/reporting reads the latest closed period.
+model UsageRecord {
+  id             String   @id @default(uuid())
+  subscriptionId String
+  periodStart    DateTime
+  periodEnd      DateTime
+  metrics        Json
+  createdAt      DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId, periodStart])
+  @@map("usage_records")
+}
+
+// ---------------------------------------------------------------------------
+// Workflow / approval engine
+//
+// A single generic approval primitive used across the platform (vendor
+// onboarding, invoice approval, manual override approval, ad-hoc
+// transport approval, ...) rather than a bespoke table per approval type.
+// ---------------------------------------------------------------------------
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model ApprovalRequest {
+  id                String         @id @default(uuid())
+  workflowType      String
+  organisationId    String?
+  resourceType      String
+  resourceId        String
+  requestedByUserId String
+  status            ApprovalStatus @default(PENDING)
+  decidedByUserId   String?
+  decisionReason    String?
+  context           Json?
+  createdAt         DateTime       @default(now())
+  decidedAt         DateTime?
+
+  @@index([workflowType, status])
+  @@index([resourceType, resourceId])
+  @@map("approval_requests")
 }

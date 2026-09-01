@@ -7,6 +7,7 @@ import { ComplianceService } from "../compliance/compliance.service";
 import { SafetyService } from "../safety/safety.service";
 import { TripService } from "../trip/trip.service";
 import { NotificationService } from "../notification/notification.service";
+import { MaintenanceService } from "../maintenance/maintenance.service";
 import { ExceptionType } from "../../generated/prisma";
 
 const DEFAULT_GROUP_SIZE = 6;
@@ -36,6 +37,7 @@ export class PlanningService {
     private readonly safety: SafetyService,
     private readonly trips: TripService,
     private readonly notifications: NotificationService,
+    private readonly maintenance: MaintenanceService,
   ) {}
 
   async generate(actor: AuthenticatedUser, input: { shiftId: string; planDate: string }) {
@@ -233,6 +235,8 @@ export class PlanningService {
     for (const candidate of candidates) {
       const eligible = await this.compliance.isEligible("VEHICLE", candidate.id, { vendorOrgId, corporateOrgId });
       if (!eligible) continue;
+      const blocked = await this.maintenance.isDeploymentBlocked(candidate.id);
+      if (blocked) continue;
       const busy = await this.isBusy("vehicleId", candidate.id, at);
       if (!busy) return candidate;
     }

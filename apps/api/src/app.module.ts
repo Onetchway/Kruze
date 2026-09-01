@@ -25,6 +25,10 @@ import { IncidentModule } from "./incident/incident.module";
 import { BillingModule } from "./billing/billing.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { PlanningModule } from "./planning/planning.module";
+import { EvModule } from "./ev/ev.module";
+import { MaintenanceModule } from "./maintenance/maintenance.module";
+import { SubscriptionModule } from "./subscription/subscription.module";
+import { WorkflowModule } from "./workflow/workflow.module";
 
 @Module({
   imports: [
@@ -52,6 +56,10 @@ import { PlanningModule } from "./planning/planning.module";
     BillingModule,
     AnalyticsModule,
     PlanningModule,
+    EvModule,
+    MaintenanceModule,
+    SubscriptionModule,
+    WorkflowModule,
   ],
   providers: [
     {
