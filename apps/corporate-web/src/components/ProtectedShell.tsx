@@ -16,10 +16,16 @@ function navItemsForRole(role: string) {
       { href: "/signup-requests", label: "Signup Requests" },
       { href: "/shifts", label: "Shifts" },
       { href: "/locations", label: "Drop Locations" },
+      { href: "/zones", label: "Zones" },
+      { href: "/contracts", label: "Contracts" },
     );
   }
   if (FLEET_ROLES.includes(role)) {
-    items.push({ href: "/fleet", label: "Fleet" }, { href: "/drivers", label: "Drivers" });
+    items.push(
+      { href: "/fleet", label: "Fleet" },
+      { href: "/drivers", label: "Drivers" },
+      { href: "/operational-mis", label: "Operational MIS" },
+    );
   }
   items.push({ href: "/connections", label: CORPORATE_ROLES.includes(role) ? "My Fleet" : "Corporates" });
   items.push({ href: "/trips", label: "Trips" });

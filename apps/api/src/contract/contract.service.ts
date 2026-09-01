@@ -55,6 +55,7 @@ export class ContractService {
     contractId: string,
     input: {
       vehicleType: string;
+      zoneId?: string;
       pricingModel: string;
       pricingRules: unknown;
       effectiveFrom: string;
@@ -67,7 +68,7 @@ export class ContractService {
     }
 
     const latest = await this.prisma.rateCard.findFirst({
-      where: { contractId, vehicleType: input.vehicleType },
+      where: { contractId, vehicleType: input.vehicleType, zoneId: input.zoneId ?? null },
       orderBy: { version: "desc" },
     });
 
@@ -75,6 +76,7 @@ export class ContractService {
       data: {
         contractId,
         vehicleType: input.vehicleType,
+        zoneId: input.zoneId,
         pricingModel: input.pricingModel,
         pricingRules: input.pricingRules as never,
         effectiveFrom: new Date(input.effectiveFrom),
@@ -84,15 +86,29 @@ export class ContractService {
     });
   }
 
-  /** The rate card in force for a vehicle type on a given date — used by billing at trip-charge time. */
-  async findEffectiveRateCard(contractId: string, vehicleType: string, atDate: Date) {
+  /**
+   * The rate card in force for a vehicle type (and optionally a zone) on a
+   * given date — used by billing at trip-charge time. A zone-specific card
+   * takes priority; a card with no zone is the fallback for any zone.
+   */
+  async findEffectiveRateCard(contractId: string, vehicleType: string, atDate: Date, zoneId?: string | null) {
+    const effectiveWindow = {
+      effectiveFrom: { lte: atDate },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: atDate } }],
+    };
+
+    if (zoneId) {
+      const zoneSpecific = await this.prisma.rateCard.findFirst({
+        where: { contractId, vehicleType, zoneId, ...effectiveWindow },
+        orderBy: { version: "desc" },
+      });
+      if (zoneSpecific) {
+        return zoneSpecific;
+      }
+    }
+
     return this.prisma.rateCard.findFirst({
-      where: {
-        contractId,
-        vehicleType,
-        effectiveFrom: { lte: atDate },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: atDate } }],
-      },
+      where: { contractId, vehicleType, zoneId: null, ...effectiveWindow },
       orderBy: { version: "desc" },
     });
   }

@@ -2,11 +2,34 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { PrismaService } from "../common/prisma/prisma.service";
 import { ContractService } from "../contract/contract.service";
 
+interface RateSlab {
+  /** Slab applies for distance in (minKm, maxKm] — maxKm omitted means "and beyond". */
+  minKm: number;
+  maxKm?: number;
+  rate: number;
+}
+
 interface PricingRules {
   perKmRate?: number;
   perTripFlat?: number;
   minimumGuarantee?: number;
   taxRatePercent?: number;
+  /** SLAB pricing model: a base fare plus the rate for whichever slab the trip's distance falls into. */
+  baseFare?: number;
+  slabs?: RateSlab[];
+  /** Hard ceiling on the pre-tax amount for SLAB pricing, if configured. */
+  capAmount?: number;
+}
+
+function slabAmount(distanceKm: number, rules: PricingRules): number {
+  const slabs = rules.slabs ?? [];
+  const matched = slabs.find((slab) => distanceKm > slab.minKm && (slab.maxKm === undefined || distanceKm <= slab.maxKm));
+  const slabRate = matched?.rate ?? slabs[slabs.length - 1]?.rate ?? 0;
+  let amount = (rules.baseFare ?? 0) + slabRate;
+  if (rules.capAmount !== undefined) {
+    amount = Math.min(amount, rules.capAmount);
+  }
+  return amount;
 }
 
 /**
@@ -53,6 +76,8 @@ export class TripChargeService {
       amount = rules.perTripFlat ?? 0;
     } else if (rateCard.pricingModel === "HYBRID") {
       amount = distanceKm * (rules.perKmRate ?? 0) + (rules.perTripFlat ?? 0);
+    } else if (rateCard.pricingModel === "SLAB") {
+      amount = slabAmount(distanceKm, rules);
     } else {
       amount = rules.perTripFlat ?? 0;
     }

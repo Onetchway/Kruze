@@ -158,6 +158,48 @@ export interface Location {
   status: string;
 }
 
+export interface Zone {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+}
+
+export interface RateCard {
+  id: string;
+  contractId: string;
+  vehicleType: string;
+  zoneId: string | null;
+  pricingModel: string;
+  pricingRules: Record<string, unknown>;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  version: number;
+}
+
+export interface DriverPaymentVoucher {
+  id: string;
+  driverId: string;
+  driver: Driver;
+  periodStart: string;
+  periodEnd: string;
+  grossAmount: string;
+  deductions: string;
+  netPayment: string;
+  status: string;
+  chequeNumber: string | null;
+}
+
+export interface Contract {
+  id: string;
+  corporateOrgId: string;
+  vendorOrgId: string;
+  status: string;
+  startsAt: string;
+  endsAt: string | null;
+  rateCards: RateCard[];
+}
+
 // --- API calls --------------------------------------------------------------
 
 export const api = {
@@ -257,4 +299,33 @@ export const api = {
     input: { name: string; code: string; address?: string; city?: string; latitude?: number; longitude?: number },
   ) => apiFetch<Location>("/locations", { method: "POST", body: input, token }),
   removeLocation: (token: string, id: string) => apiFetch<Location>(`/locations/${id}`, { method: "DELETE", token }),
+
+  listZones: (token: string) => apiFetch<Zone[]>("/zones", { token }),
+  createZone: (token: string, input: { name: string; code: string }) =>
+    apiFetch<Zone>("/zones", { method: "POST", body: input, token }),
+  removeZone: (token: string, id: string) => apiFetch<Zone>(`/zones/${id}`, { method: "DELETE", token }),
+
+  listContracts: (token: string) => apiFetch<Contract[]>("/contracts", { token }),
+  createContract: (token: string, input: { vendorOrgId: string; startsAt: string; endsAt?: string }) =>
+    apiFetch<Contract>("/contracts", { method: "POST", body: input, token }),
+  activateContract: (token: string, id: string) =>
+    apiFetch<Contract>(`/contracts/${id}/activate`, { method: "POST", token }),
+  addRateCard: (
+    token: string,
+    contractId: string,
+    input: {
+      vehicleType: string;
+      zoneId?: string;
+      pricingModel: string;
+      pricingRules: Record<string, unknown>;
+      effectiveFrom: string;
+      effectiveTo?: string;
+    },
+  ) => apiFetch<RateCard>(`/contracts/${contractId}/rate-cards`, { method: "POST", body: input, token }),
+
+  listDriverPaymentVouchers: (token: string) => apiFetch<DriverPaymentVoucher[]>("/driver-payment-vouchers", { token }),
+  generateDriverPaymentVoucher: (token: string, input: { driverId: string; periodStart: string; periodEnd: string }) =>
+    apiFetch<DriverPaymentVoucher>("/driver-payment-vouchers/generate", { method: "POST", body: input, token }),
+  lockDriverPaymentVoucher: (token: string, id: string) =>
+    apiFetch<DriverPaymentVoucher>(`/driver-payment-vouchers/${id}/lock`, { method: "POST", token }),
 };

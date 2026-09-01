@@ -35,7 +35,12 @@ live trip execution and commercial reconciliation:
     model: one identity, many concurrent vendor relationships.
   - `compliance` — documents, configurable compliance rules (global/vendor/
     corporate scope), evaluation engine used as an eligibility gate.
-  - `contract` — corporate-vendor contracts and versioned rate cards.
+  - `contract` — corporate-vendor contracts and versioned rate cards
+    (PER_KM/PER_TRIP/HYBRID/SLAB pricing models), optionally scoped to a
+    `zone` — a named/coded billing area a corporate defines, not a
+    geofence. A zone-scoped card must currently be selected manually
+    (trip-to-zone auto-resolution isn't wired — a trip has no zoneId yet).
+  - `zone` — a corporate's billing zones.
 
 **Operations**
   - `employee` — corporate employee master.
@@ -70,6 +75,9 @@ live trip execution and commercial reconciliation:
   - `billing` — trip-charge computation from a contract's effective rate
     card, invoice creation and claimed-vs-validated reconciliation with
     dispute/approval workflow.
+  - `driver-payment` — Operational MIS: periodic driver payment vouchers,
+    summed from that driver's completed trips' `TripCharge.vendorPayable`
+    for the vendor within the period; locking freezes the amounts.
   - `analytics` — corporate dashboard, vendor performance, compliance
     summary aggregate endpoints.
   - `subscription` — Kruze ↔ organisation SaaS billing: plans as named

@@ -88,13 +88,15 @@ model Organisation {
 
   auditLogs AuditLog[]
 
-  employees        Employee[]
-  shifts           Shift[]
-  transportPlans   TransportPlan[]
-  safetyPolicies   SafetyPolicy[]
-  tripsAsCorporate Trip[]          @relation("TripCorporate")
-  tripsAsVendor    Trip[]          @relation("TripVendor")
-  locations        Location[]
+  employees             Employee[]
+  shifts                Shift[]
+  transportPlans        TransportPlan[]
+  safetyPolicies        SafetyPolicy[]
+  tripsAsCorporate      Trip[]                 @relation("TripCorporate")
+  tripsAsVendor         Trip[]                 @relation("TripVendor")
+  locations             Location[]
+  zones                 Zone[]
+  driverPaymentVouchers DriverPaymentVoucher[]
 
   @@map("organisations")
 }
@@ -272,6 +274,7 @@ model Driver {
 
   vendorRelationships DriverVendorRelationship[]
   tripAssignments     TripAssignment[]
+  paymentVouchers     DriverPaymentVoucher[]
 
   @@map("drivers")
 }
@@ -625,6 +628,11 @@ model RateCard {
   id            String    @id @default(uuid())
   contractId    String
   vehicleType   String
+  /// Optional zone dimension — a rate card scoped to a zone applies only
+  /// to trips billed against that zone; a null zone is the fallback rate
+  /// for vehicleType regardless of zone (spec: zone x category matrix,
+  /// KM/Trip/Slab hybrid pricing).
+  zoneId        String?
   pricingModel  String
   pricingRules  Json
   effectiveFrom DateTime
@@ -633,9 +641,31 @@ model RateCard {
   createdAt     DateTime  @default(now())
 
   contract Contract @relation(fields: [contractId], references: [id])
+  zone     Zone?    @relation(fields: [zoneId], references: [id])
 
-  @@index([contractId, vehicleType, effectiveFrom])
+  @@index([contractId, vehicleType, zoneId, effectiveFrom])
   @@map("rate_cards")
+}
+
+/// A named/coded billing zone a corporate defines to price trips by area
+/// (spec: 729-zone x vehicle-category rate matrix). Deliberately just a
+/// lookup value, not a geofence/polygon — matching the reference model
+/// where zone boundaries are configured separately, if at all.
+model Zone {
+  id             String   @id @default(uuid())
+  corporateOrgId String
+  name           String
+  code           String
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+  rateCards    RateCard[]
+
+  @@unique([corporateOrgId, code])
+  @@index([corporateOrgId, status])
+  @@map("zones")
 }
 
 // ---------------------------------------------------------------------------
@@ -1216,6 +1246,32 @@ model TripCharge {
   trip Trip @relation(fields: [tripId], references: [id])
 
   @@map("trip_charges")
+}
+
+/// Operational MIS: a periodic driver payout batch, generated from that
+/// driver's completed trips' vendorPayable for a vendor within the period
+/// (spec: driver payment vouchers). Locking freezes the amounts so a later
+/// trip-charge recompute doesn't silently change an already-issued voucher.
+model DriverPaymentVoucher {
+  id           String   @id @default(uuid())
+  vendorOrgId  String
+  driverId     String
+  periodStart  DateTime
+  periodEnd    DateTime
+  grossAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  deductions   Decimal  @default(0) @db.Decimal(12, 2)
+  netPayment   Decimal  @default(0) @db.Decimal(12, 2)
+  status       String   @default("DRAFT")
+  chequeNumber String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
+  driver    Driver       @relation(fields: [driverId], references: [id])
+
+  @@unique([vendorOrgId, driverId, periodStart, periodEnd])
+  @@index([vendorOrgId, status])
+  @@map("driver_payment_vouchers")
 }
 
 enum InvoiceStatus {

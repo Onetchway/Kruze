@@ -31,6 +31,8 @@ import { SubscriptionModule } from "./subscription/subscription.module";
 import { WorkflowModule } from "./workflow/workflow.module";
 import { CorporateModule } from "./corporate/corporate.module";
 import { LocationModule } from "./location/location.module";
+import { ZoneModule } from "./zone/zone.module";
+import { DriverPaymentModule } from "./driver-payment/driver-payment.module";
 
 @Module({
   imports: [
@@ -64,6 +66,8 @@ import { LocationModule } from "./location/location.module";
     WorkflowModule,
     CorporateModule,
     LocationModule,
+    ZoneModule,
+    DriverPaymentModule,
   ],
   providers: [
     {

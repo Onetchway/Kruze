@@ -4,6 +4,10 @@ export class CreateRateCardDto {
   @IsString()
   vehicleType!: string;
 
+  @IsOptional()
+  @IsString()
+  zoneId?: string;
+
   @IsString()
   pricingModel!: string;
 
