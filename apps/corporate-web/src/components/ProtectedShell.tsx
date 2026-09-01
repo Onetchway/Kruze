@@ -13,6 +13,7 @@ function navItemsForRole(role: string) {
   if (CORPORATE_ROLES.includes(role)) {
     items.push(
       { href: "/employees", label: "Employees" },
+      { href: "/signup-requests", label: "Signup Requests" },
       { href: "/shifts", label: "Shifts" },
       { href: "/locations", label: "Drop Locations" },
     );

@@ -129,6 +129,9 @@ export default function LoginPage() {
             </>
           )}
         </p>
+        <p style={{ fontSize: 13, marginTop: 4 }}>
+          Employee? <a href="/employee-signup">Request transport access</a>
+        </p>
       </div>
     </div>
   );
