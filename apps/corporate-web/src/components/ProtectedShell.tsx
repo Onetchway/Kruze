@@ -11,13 +11,20 @@ const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
 function navItemsForRole(role: string) {
   const items = [{ href: "/dashboard", label: "Dashboard" }];
   if (CORPORATE_ROLES.includes(role)) {
-    items.push({ href: "/employees", label: "Employees" }, { href: "/shifts", label: "Shifts" });
+    items.push(
+      { href: "/employees", label: "Employees" },
+      { href: "/shifts", label: "Shifts" },
+      { href: "/locations", label: "Drop Locations" },
+    );
   }
   if (FLEET_ROLES.includes(role)) {
     items.push({ href: "/fleet", label: "Fleet" }, { href: "/drivers", label: "Drivers" });
   }
-  items.push({ href: "/connections", label: CORPORATE_ROLES.includes(role) ? "Vendors" : "Corporates" });
+  items.push({ href: "/connections", label: CORPORATE_ROLES.includes(role) ? "My Fleet" : "Corporates" });
   items.push({ href: "/trips", label: "Trips" });
+  if (CORPORATE_ROLES.includes(role)) {
+    items.push({ href: "/settings", label: "Settings" });
+  }
   return items;
 }
 

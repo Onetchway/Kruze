@@ -135,6 +135,29 @@ export interface Vehicle {
   rangeKm: number | null;
 }
 
+export interface CorporateSettings {
+  organisationId: string;
+  address: string | null;
+  contactPersonName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  contractStartsAt: string | null;
+  contractEndsAt: string | null;
+  paymentTerms: string | null;
+  employeePickupChangeLimit: number;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+}
+
 // --- API calls --------------------------------------------------------------
 
 export const api = {
@@ -201,4 +224,29 @@ export const api = {
   listDrivers: (token: string) => apiFetch<Driver[]>("/drivers", { token }),
   createDriver: (token: string, input: { fullName: string; phone: string; licenceNumber?: string }) =>
     apiFetch<Driver>("/drivers", { method: "POST", body: input, token }),
+
+  getCorporateSettings: (token: string) => apiFetch<CorporateSettings>("/corporate/settings", { token }),
+  updateCorporateSettings: (
+    token: string,
+    input: Partial<
+      Pick<
+        CorporateSettings,
+        | "address"
+        | "contactPersonName"
+        | "contactEmail"
+        | "contactPhone"
+        | "contractStartsAt"
+        | "contractEndsAt"
+        | "paymentTerms"
+        | "employeePickupChangeLimit"
+      >
+    >,
+  ) => apiFetch<CorporateSettings>("/corporate/settings", { method: "PUT", body: input, token }),
+
+  listLocations: (token: string) => apiFetch<Location[]>("/locations", { token }),
+  createLocation: (
+    token: string,
+    input: { name: string; code: string; address?: string; city?: string; latitude?: number; longitude?: number },
+  ) => apiFetch<Location>("/locations", { method: "POST", body: input, token }),
+  removeLocation: (token: string, id: string) => apiFetch<Location>(`/locations/${id}`, { method: "DELETE", token }),
 };

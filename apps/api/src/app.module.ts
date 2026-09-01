@@ -29,6 +29,8 @@ import { EvModule } from "./ev/ev.module";
 import { MaintenanceModule } from "./maintenance/maintenance.module";
 import { SubscriptionModule } from "./subscription/subscription.module";
 import { WorkflowModule } from "./workflow/workflow.module";
+import { CorporateModule } from "./corporate/corporate.module";
+import { LocationModule } from "./location/location.module";
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { WorkflowModule } from "./workflow/workflow.module";
     MaintenanceModule,
     SubscriptionModule,
     WorkflowModule,
+    CorporateModule,
+    LocationModule,
   ],
   providers: [
     {

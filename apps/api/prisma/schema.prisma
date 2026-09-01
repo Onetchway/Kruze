@@ -94,6 +94,7 @@ model Organisation {
   safetyPolicies   SafetyPolicy[]
   tripsAsCorporate Trip[]          @relation("TripCorporate")
   tripsAsVendor    Trip[]          @relation("TripVendor")
+  locations        Location[]
 
   @@map("organisations")
 }
@@ -189,14 +190,46 @@ model OrganisationRelationship {
 // ---------------------------------------------------------------------------
 
 model Corporate {
-  organisationId String   @id
-  config         Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  organisationId            String    @id
+  config                    Json?
+  address                   String?
+  contactPersonName         String?
+  contactEmail              String?
+  contactPhone              String?
+  contractStartsAt          DateTime?
+  contractEndsAt            DateTime?
+  paymentTerms              String?
+  /// How many times an employee may change their own pickup location — a
+  /// corporate-configured limit, not a hard-coded one (spec §29).
+  employeePickupChangeLimit Int       @default(1)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   organisation Organisation @relation(fields: [organisationId], references: [id])
 
   @@map("corporates")
+}
+
+/// A corporate's named office/depot/drop location, distinct from an
+/// employee's individually chosen pickup point.
+model Location {
+  id             String   @id @default(uuid())
+  corporateOrgId String
+  name           String
+  code           String
+  address        String?
+  city           String?
+  latitude       Float?
+  longitude      Float?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+
+  @@unique([corporateOrgId, code])
+  @@index([corporateOrgId, status])
+  @@map("locations")
 }
 
 model VendorProfile {
