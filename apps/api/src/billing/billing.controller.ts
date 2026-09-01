@@ -35,7 +35,7 @@ export class InvoiceController {
   constructor(private readonly invoices: InvoiceService) {}
 
   @Post()
-  @Roles(PlatformRole.CORPORATE_FINANCE)
+  @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.CORPORATE_TRANSPORT_ADMIN)
   @Audited({ action: "INVOICE_CREATED", resourceType: "Invoice" })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateInvoiceDto) {
     return this.invoices.createInvoice(user.organisationId, dto);
@@ -56,7 +56,7 @@ export class InvoiceController {
   }
 
   @Post("lines/:lineId/approve")
-  @Roles(PlatformRole.CORPORATE_FINANCE)
+  @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.CORPORATE_TRANSPORT_ADMIN)
   @Audited({ action: "INVOICE_LINE_APPROVED", resourceType: "InvoiceLine" })
   approveLine(@CurrentUser() user: AuthenticatedUser, @Param("lineId") lineId: string) {
     return this.invoices.approveLine(user, lineId);

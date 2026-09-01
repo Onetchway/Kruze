@@ -138,6 +138,26 @@ export interface SafetyPolicy {
   rules: SafetyRule[];
 }
 
+export interface InvoiceLine {
+  id: string;
+  tripId: string;
+  claimedAmount: string;
+  approvedAmount: string | null;
+  varianceAmount: string | null;
+  status: string;
+  disputeReason: string | null;
+}
+
+export interface Invoice {
+  id: string;
+  vendorOrgId: string;
+  corporateOrgId: string;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  lines: InvoiceLine[];
+}
+
 export interface ComplianceRule {
   id: string;
   scope: string;
@@ -390,6 +410,14 @@ export const api = {
       effectiveTo?: string;
     },
   ) => apiFetch<RateCard>(`/contracts/${contractId}/rate-cards`, { method: "POST", body: input, token }),
+
+  listInvoices: (token: string) => apiFetch<Invoice[]>("/invoices", { token }),
+  createInvoice: (token: string, input: { vendorOrgId: string; periodStart: string; periodEnd: string }) =>
+    apiFetch<Invoice>("/invoices", { method: "POST", body: input, token }),
+  disputeInvoiceLine: (token: string, lineId: string, reason: string) =>
+    apiFetch<InvoiceLine>(`/invoices/lines/${lineId}/dispute`, { method: "POST", body: { reason }, token }),
+  approveInvoiceLine: (token: string, lineId: string) =>
+    apiFetch<InvoiceLine>(`/invoices/lines/${lineId}/approve`, { method: "POST", token }),
 
   listComplianceRules: (token: string, subjectType?: string) =>
     apiFetch<ComplianceRule[]>(`/compliance-rules${subjectType ? `?subjectType=${subjectType}` : ""}`, { token }),

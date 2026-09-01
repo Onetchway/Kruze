@@ -21,6 +21,7 @@ function navItemsForRole(role: string) {
       { href: "/locations", label: "Drop Locations", icon: "📍" },
       { href: "/zones", label: "Zones", icon: "🗺" },
       { href: "/contracts", label: "Contracts", icon: "📄" },
+      { href: "/invoices", label: "Invoices", icon: "💳" },
       { href: "/compliance", label: "Compliance", icon: "✅" },
     );
   }
