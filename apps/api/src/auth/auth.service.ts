@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { OrganisationRole, PlatformRole } from "@kruze/domain";
 import { UsersService } from "../identity/users.service";
@@ -39,6 +39,9 @@ export class AuthService {
     organisationDisplayName: string;
     organisationRole: OrganisationRole;
   }) {
+    if (input.organisationRole === OrganisationRole.KRUZE_PLATFORM) {
+      throw new BadRequestException("Kruze platform accounts cannot be self-registered");
+    }
     const existing = await this.users.findByEmail(input.email);
     if (existing) {
       throw new ConflictException("An account with this email already exists");

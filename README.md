@@ -137,6 +137,8 @@ pnpm api:test:e2e  # e2e tests, incl. tenant-isolation authorization suite
 cp apps/corporate-web/.env.local.example apps/corporate-web/.env.local
 pnpm --filter @kruze/corporate-web dev -- -p 3100   # Corporate Portal on :3100
 
+pnpm --filter @kruze/api exec ts-node -r tsconfig-paths/register prisma/seed-super-admin.ts  # SUPER_ADMIN_EMAIL/PASSWORD env vars required — bootstraps the first Admin Web account
+
 cp apps/admin-web/.env.local.example apps/admin-web/.env.local
 pnpm --filter @kruze/admin-web dev -- -p 3200       # Admin console on :3200
 ```
