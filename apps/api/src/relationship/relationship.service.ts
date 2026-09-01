@@ -70,6 +70,10 @@ export class RelationshipService {
     return this.prisma.organisationRelationship.findMany({
       where: { OR: [{ sourceOrgId: organisationId }, { targetOrgId: organisationId }] },
       orderBy: { createdAt: "desc" },
+      include: {
+        sourceOrg: { select: { id: true, globalOrgId: true, displayName: true, roles: true } },
+        targetOrg: { select: { id: true, globalOrgId: true, displayName: true, roles: true } },
+      },
     });
   }
 

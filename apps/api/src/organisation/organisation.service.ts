@@ -48,4 +48,22 @@ export class OrganisationService {
   list() {
     return this.prisma.organisation.findMany({ orderBy: { createdAt: "desc" } });
   }
+
+  /**
+   * Minimal public lookup by the human-readable Kruze ID, so one
+   * organisation can find another to invite into a relationship without
+   * a platform-admin-only directory. Global IDs are meant to be shared
+   * for exactly this purpose (spec §3) — this never exposes anything
+   * beyond what the ID itself already implies (name, type, status).
+   */
+  async findByGlobalId(globalOrgId: string) {
+    const org = await this.prisma.organisation.findUnique({
+      where: { globalOrgId },
+      select: { id: true, globalOrgId: true, displayName: true, roles: true, status: true },
+    });
+    if (!org) {
+      throw new NotFoundException("No organisation found with that ID");
+    }
+    return org;
+  }
 }

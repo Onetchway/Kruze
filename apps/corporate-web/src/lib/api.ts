@@ -92,6 +92,34 @@ export interface Trip {
   scheduledStartAt: string;
 }
 
+export interface OrganisationLookup {
+  id: string;
+  globalOrgId: string;
+  displayName: string;
+  roles: string[];
+  status: string;
+}
+
+export interface OrganisationRelationship {
+  id: string;
+  sourceOrgId: string;
+  targetOrgId: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  sourceOrg: OrganisationLookup;
+  targetOrg: OrganisationLookup;
+}
+
+export interface Driver {
+  id: string;
+  globalDriverId: string;
+  fullName: string;
+  phone: string;
+  licenceNumber: string | null;
+  status: string;
+}
+
 export interface Vehicle {
   id: string;
   globalVehicleId: string;
@@ -159,4 +187,18 @@ export const api = {
       rangeKm?: number;
     },
   ) => apiFetch<Vehicle>("/vehicles", { method: "POST", body: input, token }),
+
+  lookupOrganisation: (token: string, globalOrgId: string) =>
+    apiFetch<OrganisationLookup>(`/organisations/lookup?globalOrgId=${encodeURIComponent(globalOrgId)}`, { token }),
+  getMyOrganisation: (token: string) => apiFetch<Organisation>("/organisations/me", { token }),
+
+  listRelationships: (token: string) => apiFetch<OrganisationRelationship[]>("/organisation-relationships", { token }),
+  inviteRelationship: (token: string, input: { targetOrgId: string; type: string }) =>
+    apiFetch<OrganisationRelationship>("/organisation-relationships", { method: "POST", body: input, token }),
+  acceptRelationship: (token: string, relationshipId: string) =>
+    apiFetch<OrganisationRelationship>(`/organisation-relationships/${relationshipId}/accept`, { method: "POST", token }),
+
+  listDrivers: (token: string) => apiFetch<Driver[]>("/drivers", { token }),
+  createDriver: (token: string, input: { fullName: string; phone: string; licenceNumber?: string }) =>
+    apiFetch<Driver>("/drivers", { method: "POST", body: input, token }),
 };

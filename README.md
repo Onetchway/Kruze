@@ -89,12 +89,16 @@ and the nav adapts —
   automation-first Dashboard (generate a plan, see the same "N employees /
   N trips / N exceptions" summary and exception-review CTA the spec's UX
   section describes, then publish).
-- Fleet Operator / Vendor: **Fleet** — register vehicles (make/model/type/
-  capacity/fuel, with EV fields for battery range) against the org's own
-  fleet. They become eligible for auto-assignment once a corporate
-  connects the organisation and compliance/maintenance checks pass — the
-  same `vehicles` API the `driver`/`vehicle`/`guard` backend modules
-  expose, now with a UI in front of it.
+- Fleet Operator / Vendor: **Fleet** (register vehicles — make/model/type/
+  capacity/fuel, with EV fields for battery range) and **Drivers**. They
+  become eligible for auto-assignment once a corporate connects the
+  organisation and compliance/maintenance checks pass.
+- Every account sees its own **Kruze ID** in the sidebar (`GET
+  /organisations/me`) and a **Vendors**/**Corporates** connections page:
+  enter the other side's Kruze ID (`GET /organisations/lookup`) to send an
+  invite, the other party accepts, and the relationship goes ACTIVE — the
+  UI on top of `organisation-relationships`, closing the loop from empty
+  account to an auto-plan that actually finds eligible vehicles.
 - Trips is visible to everyone; a corporate-only or fleet-only page tells
   the other account type it isn't available rather than erroring.
 
