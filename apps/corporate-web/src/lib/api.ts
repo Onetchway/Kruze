@@ -138,6 +138,31 @@ export interface SafetyPolicy {
   rules: SafetyRule[];
 }
 
+export interface CorporateAnalytics {
+  period: { from: string; to: string };
+  tripsByStatus: Record<string, number>;
+  totalTrips: number;
+  onTimePerformance: number | null;
+  noShowRate: number | null;
+  totalCorporateCost: number;
+  totalVendorPayable: number;
+  costPerEmployee: number | null;
+}
+
+export interface VendorAnalytics {
+  period: { from: string; to: string };
+  totalTrips: number;
+  completionRate: number | null;
+  cancellationRate: number | null;
+  incidentCount: number;
+}
+
+export interface ComplianceSummaryRow {
+  status: string;
+  subjectType: string;
+  count: number;
+}
+
 export interface InvoiceLine {
   id: string;
   tripId: string;
@@ -410,6 +435,11 @@ export const api = {
       effectiveTo?: string;
     },
   ) => apiFetch<RateCard>(`/contracts/${contractId}/rate-cards`, { method: "POST", body: input, token }),
+
+  corporateAnalytics: (token: string) => apiFetch<CorporateAnalytics>("/analytics/corporate/dashboard", { token }),
+  vendorAnalytics: (token: string, vendorOrgId?: string) =>
+    apiFetch<VendorAnalytics>(`/analytics/vendor/performance${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
+  complianceSummary: (token: string) => apiFetch<ComplianceSummaryRow[]>("/analytics/compliance/summary", { token }),
 
   listInvoices: (token: string) => apiFetch<Invoice[]>("/invoices", { token }),
   createInvoice: (token: string, input: { vendorOrgId: string; periodStart: string; periodEnd: string }) =>

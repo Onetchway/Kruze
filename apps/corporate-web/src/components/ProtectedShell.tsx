@@ -23,6 +23,8 @@ function navItemsForRole(role: string) {
       { href: "/contracts", label: "Contracts", icon: "📄" },
       { href: "/invoices", label: "Invoices", icon: "💳" },
       { href: "/compliance", label: "Compliance", icon: "✅" },
+      { href: "/analytics", label: "Analytics", icon: "📈" },
+      { href: "/integrations", label: "Integrations", icon: "🔌" },
     );
   }
   if (FLEET_ROLES.includes(role)) {
