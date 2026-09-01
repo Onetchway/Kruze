@@ -97,27 +97,35 @@ live trip execution and commercial reconciliation:
     onboarding, invoice approval, manual overrides, etc., instead of a
     bespoke table per approval type.
 
-**`apps/corporate-web`**: Next.js (App Router) + TypeScript. Despite the
-name it now serves three of the spec's account types from one app, since
-they share the same shell and the backend already enforces who can do
-what: at signup you pick **Corporate**, **Fleet Operator**, or **Vendor**,
-and the nav adapts —
-- Corporate: shifts, employees with roster opt-in, and the
-  automation-first Dashboard (generate a plan, see the same "N employees /
-  N trips / N exceptions" summary and exception-review CTA the spec's UX
-  section describes, then publish).
-- Fleet Operator / Vendor: **Fleet** (register vehicles — make/model/type/
-  capacity/fuel, with EV fields for battery range) and **Drivers**. They
-  become eligible for auto-assignment once a corporate connects the
-  organisation and compliance/maintenance checks pass.
-- Every account sees its own **Kruze ID** in the sidebar (`GET
-  /organisations/me`) and a **Vendors**/**Corporates** connections page:
-  enter the other side's Kruze ID (`GET /organisations/lookup`) to send an
-  invite, the other party accepts, and the relationship goes ACTIVE — the
-  UI on top of `organisation-relationships`, closing the loop from empty
-  account to an auto-plan that actually finds eligible vehicles.
-- Trips is visible to everyone; a corporate-only or fleet-only page tells
-  the other account type it isn't available rather than erroring.
+**`apps/corporate-web`**: Next.js (App Router) + TypeScript, for
+**Corporate** accounts. Shifts, employees with roster opt-in, the
+automation-first Dashboard (generate a plan, see the same "N employees /
+N trips / N exceptions" summary and exception-review CTA the spec's UX
+section describes, then publish), drop locations, zones, contracts, and
+a **My Fleet** connections page (enter a vendor's Kruze ID via `GET
+/organisations/lookup` to invite them; they accept from their own app,
+and the relationship goes ACTIVE over `organisation-relationships`).
+Fleet Operator/Vendor accounts can still sign in here too (the backend
+doesn't care which app calls it) — `fleet`/`drivers` self-guard with a
+"not available for your role" message when a corporate does — but
+`operator-web` is the dedicated path for them now (below).
+
+**`apps/operator-web`**: Next.js (App Router) + TypeScript, for **Fleet
+Operator** and **Vendor** accounts — previously these shared
+corporate-web's shell with a nav that hid corporate-only links. This
+app's login rejects a Corporate account outright rather than showing a
+generic form. Dashboard is a real KPI summary (active vehicles/drivers/
+guards, trips today, in-progress now) instead of corporate-web's
+shift-planning tool, which doesn't apply to a vendor's role. Fleet
+(vehicle registration, with EV fields) and Drivers carry over
+unchanged. **Guards** (`/guards`) is genuinely new: the backend
+(`POST /guards`, compliance/eligibility for the `GUARD` role) has
+existed since early in the project, but no frontend ever called it
+until now — a vendor/fleet operator onboards guards the same way they
+onboard drivers, then a guard sets up mobile login in `apps/guard-app`
+using that Guard ID. Trips (read-only assignment status), Operational
+MIS (driver payment vouchers), and Corporates (the same connections
+flow, vendor-side copy) round it out.
 
 **`apps/admin-web`**: Next.js (App Router) + TypeScript, for Kruze
 platform staff (`KRUZE_SUPER_ADMIN`) only. Login-only — platform accounts
@@ -220,6 +228,16 @@ pnpm --filter @kruze/admin-web dev -- -p 3200       # Admin console on :3200
 
 cp apps/control-room-web/.env.local.example apps/control-room-web/.env.local
 pnpm --filter @kruze/control-room-web dev -- -p 3300  # Control Room on :3300
+
+cp apps/operator-web/.env.local.example apps/operator-web/.env.local
+pnpm --filter @kruze/operator-web dev -- -p 3500    # Fleet Operator/Vendor Portal on :3500
+
+# apps/employee-app, apps/driver-app, apps/guard-app are Expo/React Native,
+# managed with npm (not pnpm) — see each app's own README for setup.
+
+# optional: real Kafka event backbone + real OR-Tools solver — the API
+# works fine without either (see apps/api/src/eventbus/README.md and
+# apps/optimizer-service/README.md for how to run them locally).
 ```
 
 Open http://localhost:3100, "Create an account" to self-register a
@@ -256,7 +274,14 @@ Two e2e suites run against a real PostgreSQL database on every CI run:
 ```
 apps/
   api/                 NestJS backend (modular monolith)
+  optimizer-service/   Python/Flask real OR-Tools CVRP solver
   corporate-web/       Next.js Corporate Portal
+  operator-web/        Next.js Fleet Operator/Vendor Portal
+  admin-web/           Next.js Kruze platform admin console
+  control-room-web/    Next.js dispatcher/supervisor console
+  employee-app/        Expo/React Native employee app
+  driver-app/          Expo/React Native driver app
+  guard-app/           Expo/React Native guard app
 packages/
   domain/              Shared enums/types used across apps
 docs/

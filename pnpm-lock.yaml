@@ -224,6 +224,31 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  apps/operator-web:
+    dependencies:
+      next:
+        specifier: ^15.5.25
+        version: 15.5.25(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.15
+        version: 20.19.43
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.2.5
+        version: 19.2.5(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
   packages/domain:
     devDependencies:
       typescript:
