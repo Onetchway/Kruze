@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError, TripDetail, LocationPing, Driver, Vehicle } from "@/lib/api";
+import { useRealtimeEvent } from "@/lib/realtime";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 export default function TripDetailPage() {
@@ -39,10 +40,24 @@ export default function TripDetailPage() {
 
   useEffect(() => {
     reload();
-    const interval = setInterval(reload, 8_000);
+    // Fallback poll — the socket pushes below are the primary update path.
+    const interval = setInterval(reload, 30_000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, tripId]);
+
+  useRealtimeEvent(session?.accessToken, "trip.status", (payload) => {
+    if ((payload as { tripId?: string }).tripId === tripId) reload();
+  });
+  useRealtimeEvent(session?.accessToken, "trip.assignment", (payload) => {
+    if ((payload as { tripId?: string }).tripId === tripId) reload();
+  });
+  useRealtimeEvent(session?.accessToken, "trip.location", (payload) => {
+    const ping = payload as { tripId?: string; latitude: number; longitude: number; speed: number | null; recordedAt: string };
+    if (ping.tripId === tripId) {
+      setLocation({ id: `live-${ping.recordedAt}`, latitude: ping.latitude, longitude: ping.longitude, speed: ping.speed, recordedAt: ping.recordedAt });
+    }
+  });
 
   useEffect(() => {
     if (!session) return;

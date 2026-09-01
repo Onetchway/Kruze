@@ -122,26 +122,41 @@ activate/suspend/cancel) — all against the existing `organisations` and
 **`apps/control-room-web`**: Next.js (App Router) + TypeScript, for
 supervisors/dispatchers on either side (corporate or vendor). **Live
 Trips** lists trips in a dispatch-relevant status (assigned/running/SOS/
-breakdown/reassigning), polling every 10s, with a per-trip detail page
-(live GPS position via `GET /tracking/trips/:id/latest`, polled every 8s;
-employee pickup/drop verification state; current assignment; event log)
-and the three live-intervention actions the spec's exception-first UX
-calls for: report a breakdown (`POST /trips/:tripId/breakdown`), assign a
-replacement driver/vehicle once in BREAKDOWN state (`POST /trips/:tripId/
-replace`), and a supervisor OTP override for a stuck pickup/drop (`POST
-/otp-challenges/:id/override`). **Incidents / SOS** lists open incidents
-(SOS alerts called out separately) with a close-with-corrective-action
-action. All against existing trip/tracking/incident/otp endpoints — no
-new backend surface required.
+breakdown/reassigning), updated live over the `realtime` WebSocket
+gateway described below (30s poll as a fallback), with a per-trip detail
+page (live GPS position via `GET /tracking/trips/:id/latest`, pushed
+instantly on every ping; employee pickup/drop verification state; current
+assignment; event log) and the three live-intervention actions the
+spec's exception-first UX calls for: report a breakdown (`POST /trips/
+:tripId/breakdown`), assign a replacement driver/vehicle once in
+BREAKDOWN state (`POST /trips/:tripId/replace`), and a supervisor OTP
+override for a stuck pickup/drop (`POST /otp-challenges/:id/override`).
+**Incidents / SOS** lists open incidents (SOS alerts called out
+separately) with a close-with-corrective-action action. All against
+existing trip/tracking/incident/otp endpoints — no new backend surface
+required beyond `realtime` itself.
 
-Not yet built: the remaining application surfaces (a dedicated Operator/
-Vendor Web — Vendor/Fleet Operator accounts currently use
-`corporate-web`'s shared shell — and the Employee/Driver/Guard mobile
-apps), a real Kafka/WebSocket event backbone (the modules above call each
-other directly and log-only for notifications; Control Room polls rather
-than subscribing), a genuine VRP/OR-Tools optimizer, HRMS/SSO
-integrations, and independent security hardening (VAPT, load testing) —
-see §17–21 of the specs for that scope.
+**`realtime`** (backend module) — an in-process WebSocket gateway (`@nestjs/websockets` +
+  socket.io), global so any module can inject it. Clients connect with
+  their JWT access token and are joined to an `org:<organisationId>` room
+  — a payload can only ever reach the organisations that were actually
+  passed to `emitToOrg`, so tenant isolation holds over the socket the
+  same way it does over REST. `trip.status`/`trip.assignment` (from
+  `trip`), `trip.location` (from `tracking`), and `incident.created`/
+  `incident.closed` (from `incident`) are emitted today; `control-room-web`
+  subscribes to all of them and falls back to a 30s poll for reconnect
+  gaps. This is the honest substitute for a real Kafka-backed event
+  backbone in an environment with no message broker available — modules
+  still call each other directly for domain logic, this only adds a push
+  channel on top for connected browsers. A genuine broker-backed backbone
+  (spec §16) is still future work once real infrastructure exists.
+
+Not yet built: a dedicated Operator/Vendor Web (Vendor/Fleet Operator
+accounts currently use `corporate-web`'s shared shell), the Employee/
+Driver/Guard mobile apps, a genuine VRP/OR-Tools optimizer (`planning` is
+still the deterministic heuristic described above), HRMS/SSO integrations,
+and independent security hardening beyond the audit already done in this
+repo (VAPT, load testing) — see §17–21 of the specs for that scope.
 
 ## Getting started
 

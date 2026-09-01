@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, Trip, LIVE_TRIP_STATUSES } from "@/lib/api";
+import { useRealtimeEvent } from "@/lib/realtime";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function statusBadgeClass(status: string): string {
@@ -25,9 +26,14 @@ export default function TripsPage() {
 
   useEffect(() => {
     reload();
-    const interval = setInterval(reload, 10_000);
+    // Fallback poll — the socket push below is the primary update path, this
+    // just covers reconnect gaps and events missed while backgrounded.
+    const interval = setInterval(reload, 30_000);
     return () => clearInterval(interval);
   }, [session]);
+
+  useRealtimeEvent(session?.accessToken, "trip.status", reload);
+  useRealtimeEvent(session?.accessToken, "incident.created", reload);
 
   const visible = showAll ? trips : trips.filter((t) => LIVE_TRIP_STATUSES.includes(t.status));
   const sosCount = trips.filter((t) => t.status === "SOS_ACTIVE").length;

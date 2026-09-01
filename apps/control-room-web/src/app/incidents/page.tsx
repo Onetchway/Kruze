@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError, Incident } from "@/lib/api";
+import { useRealtimeEvent } from "@/lib/realtime";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 export default function IncidentsPage() {
@@ -19,10 +20,14 @@ export default function IncidentsPage() {
 
   useEffect(() => {
     reload();
-    const interval = setInterval(reload, 10_000);
+    // Fallback poll — the socket pushes below are the primary update path.
+    const interval = setInterval(reload, 30_000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  useRealtimeEvent(session?.accessToken, "incident.created", reload);
+  useRealtimeEvent(session?.accessToken, "incident.closed", reload);
 
   async function handleClose(id: string) {
     if (!session) return;

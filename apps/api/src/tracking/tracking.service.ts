@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { haversineDistanceMeters } from "./geo.util";
 
 const FUTURE_TOLERANCE_MS = 60_000;
@@ -14,7 +15,10 @@ const FUTURE_TOLERANCE_MS = 60_000;
  */
 @Injectable()
 export class TrackingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
+  ) {}
 
   async ingest(
     actor: AuthenticatedUser,
@@ -33,8 +37,9 @@ export class TrackingService {
     if (!input.tripId && !input.vehicleId && !input.driverId) {
       throw new BadRequestException("At least one of tripId, vehicleId, driverId is required");
     }
+    let trip: { corporateOrgId: string; vendorOrgId: string | null } | null = null;
     if (input.tripId) {
-      await this.assertTripAccess(actor, input.tripId);
+      trip = await this.assertTripAccess(actor, input.tripId);
     }
     if (input.vehicleId) {
       await this.assertVehicleAccess(actor, input.vehicleId);
@@ -48,7 +53,7 @@ export class TrackingService {
       throw new BadRequestException("recordedAt is in the future — rejecting as an impossible point");
     }
 
-    return this.prisma.locationEvent.create({
+    const event = await this.prisma.locationEvent.create({
       data: {
         tripId: input.tripId,
         driverId: input.driverId,
@@ -61,6 +66,14 @@ export class TrackingService {
         recordedAt,
       },
     });
+
+    if (input.tripId && trip) {
+      const payload = { tripId: input.tripId, latitude: input.latitude, longitude: input.longitude, speed: input.speed, recordedAt: event.recordedAt };
+      this.realtime.emitToOrg(trip.corporateOrgId, "trip.location", payload);
+      this.realtime.emitToOrg(trip.vendorOrgId, "trip.location", payload);
+    }
+
+    return event;
   }
 
   async latestForVehicle(actor: AuthenticatedUser, vehicleId: string) {
@@ -117,6 +130,7 @@ export class TrackingService {
     if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
       throw new ForbiddenException("Not a party to this trip");
     }
+    return trip;
   }
 
   private async assertVehicleAccess(actor: AuthenticatedUser, vehicleId: string) {

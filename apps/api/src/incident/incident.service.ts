@@ -4,6 +4,7 @@ import { AuthenticatedUser } from "../common/request-context";
 import { NotificationService } from "../notification/notification.service";
 import { TripService } from "../trip/trip.service";
 import { canTransition } from "../trip/trip-state-machine";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { IncidentCategory, IncidentSeverity } from "../../generated/prisma";
 
 @Injectable()
@@ -12,6 +13,7 @@ export class IncidentService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
     private readonly trips: TripService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async report(
@@ -29,8 +31,14 @@ export class IncidentService {
       },
     });
 
+    const trip = input.tripId ? await this.prisma.trip.findUnique({ where: { id: input.tripId } }) : null;
+    if (trip) {
+      const payload = { incidentId: incident.id, tripId: input.tripId, category: incident.category, severity: incident.severity };
+      this.realtime.emitToOrg(trip.corporateOrgId, "incident.created", payload);
+      this.realtime.emitToOrg(trip.vendorOrgId, "incident.created", payload);
+    }
+
     if (input.category === "SOS" && input.tripId) {
-      const trip = await this.prisma.trip.findUnique({ where: { id: input.tripId } });
       if (trip && canTransition(trip.status, "SOS_ACTIVE")) {
         await this.trips.transition(actor, input.tripId, "SOS_ACTIVE", "SOS raised");
       }
@@ -62,10 +70,16 @@ export class IncidentService {
     if (incident.status === "CLOSED") {
       throw new ForbiddenException("Incident is already closed");
     }
-    return this.prisma.incident.update({
+    const closed = await this.prisma.incident.update({
       where: { id: incidentId },
       data: { status: "CLOSED", correctiveAction, closedByUserId: actor.userId, closedAt: new Date() },
     });
+    if (incident.trip) {
+      const payload = { incidentId, tripId: incident.tripId };
+      this.realtime.emitToOrg(incident.trip.corporateOrgId, "incident.closed", payload);
+      this.realtime.emitToOrg(incident.trip.vendorOrgId, "incident.closed", payload);
+    }
+    return closed;
   }
 
   list(actor: AuthenticatedUser, status?: string) {

@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
 import { ComplianceService } from "../compliance/compliance.service";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { canTransition } from "./trip-state-machine";
 import { AssignmentSource, TripStatus } from "../../generated/prisma";
 
@@ -12,6 +13,7 @@ export class TripService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly compliance: ComplianceService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async create(
@@ -97,6 +99,11 @@ export class TripService {
       });
 
       return updated;
+    }).then((updated) => {
+      const payload = { tripId, status: updated.status };
+      this.realtime.emitToOrg(updated.corporateOrgId, "trip.status", payload);
+      this.realtime.emitToOrg(updated.vendorOrgId, "trip.status", payload);
+      return updated;
     });
   }
 
@@ -168,6 +175,11 @@ export class TripService {
         },
       });
 
+      return assignment;
+    }).then((assignment) => {
+      const payload = { tripId, driverId: assignment.driverId, vehicleId: assignment.vehicleId, guardId: assignment.guardId };
+      this.realtime.emitToOrg(trip.corporateOrgId, "trip.assignment", payload);
+      this.realtime.emitToOrg(trip.vendorOrgId, "trip.assignment", payload);
       return assignment;
     });
   }
