@@ -102,8 +102,17 @@ and the nav adapts —
 - Trips is visible to everyone; a corporate-only or fleet-only page tells
   the other account type it isn't available rather than erroring.
 
-Not yet built: the remaining application surfaces (Admin Web, Operator/
-Vendor Web, Control Room, and the Employee/Driver/Guard mobile apps), a real
+**`apps/admin-web`**: Next.js (App Router) + TypeScript, for Kruze
+platform staff (`KRUZE_SUPER_ADMIN`) only. Login-only — platform accounts
+are provisioned out of band, not self-registered — with Dashboard
+(organisation counts by status/type), Organisations (approve
+`PENDING_APPROVAL` tenants), Plans (create feature-key subscription
+bundles), and Subscriptions (subscribe an organisation to a plan,
+activate/suspend/cancel) — all against the existing `organisations` and
+`subscription`-module endpoints, no new backend surface required.
+
+Not yet built: the remaining application surfaces (Operator/Vendor Web,
+Control Room, and the Employee/Driver/Guard mobile apps), a real
 Kafka/WebSocket event backbone (the modules above call each other directly
 and log-only for notifications), a genuine VRP/OR-Tools optimizer, HRMS/SSO
 integrations, and independent security hardening (VAPT, load testing) —
@@ -127,6 +136,9 @@ pnpm api:test:e2e  # e2e tests, incl. tenant-isolation authorization suite
 
 cp apps/corporate-web/.env.local.example apps/corporate-web/.env.local
 pnpm --filter @kruze/corporate-web dev -- -p 3100   # Corporate Portal on :3100
+
+cp apps/admin-web/.env.local.example apps/admin-web/.env.local
+pnpm --filter @kruze/admin-web dev -- -p 3200       # Admin console on :3200
 ```
 
 Open http://localhost:3100, "Create an account" to self-register a
