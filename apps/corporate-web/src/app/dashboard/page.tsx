@@ -64,12 +64,10 @@ export default function DashboardPage() {
   const meta = plan?.metadata;
 
   return (
-    <ProtectedShell>
-      <h2 style={{ marginTop: 0 }}>Auto Plan</h2>
-      <p style={{ color: "var(--text-muted)" }}>
-        The system plans automatically; you manage exceptions. Pick a shift and date, then generate today&apos;s plan.
-      </p>
-
+    <ProtectedShell
+      title="Welcome back"
+      subtitle="The system plans automatically; you manage exceptions. Pick a shift and date, then generate today's plan."
+    >
       <div className="card">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div className="field" style={{ marginBottom: 0, minWidth: 200 }}>
@@ -105,9 +103,32 @@ export default function DashboardPage() {
               <div className="value">{meta?.tripsGenerated ?? "—"}</div>
               <div className="label">Trips generated</div>
             </div>
+            <div className={`stat-tile ${(meta?.unassignedEmployees ?? 0) > 0 ? "warning" : ""}`}>
+              <div className="value">{meta?.unassignedEmployees ?? 0}</div>
+              <div className="label">Unassigned employees</div>
+            </div>
             <div className={`stat-tile ${openExceptions.length > 0 ? "warning" : ""}`}>
               <div className="value">{openExceptions.length}</div>
               <div className="label">Unresolved exceptions</div>
+            </div>
+          </div>
+
+          <div className="stat-row">
+            <div className="stat-tile">
+              <div className="value">{meta?.vehiclesRequired ?? "—"}</div>
+              <div className="label">Vehicles required</div>
+            </div>
+            <div className="stat-tile">
+              <div className="value">{meta?.driversRequired ?? "—"}</div>
+              <div className="label">Drivers required</div>
+            </div>
+            <div className="stat-tile">
+              <div className="value">{meta?.guardsRequired ?? "—"}</div>
+              <div className="label">Guards required</div>
+            </div>
+            <div className="stat-tile">
+              <div className="value">{meta?.exceptionsRaised ?? 0}</div>
+              <div className="label">Planning exceptions raised</div>
             </div>
           </div>
 

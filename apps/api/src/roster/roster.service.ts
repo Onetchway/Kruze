@@ -57,6 +57,59 @@ export class RosterService {
     });
   }
 
+  /** Bulk opt-in a set of employees into a shift across a set of dates (e.g. "roster this shift for these employees, every weekday this week"). */
+  async bulkUpsert(actor: AuthenticatedUser, input: { shiftId: string; employeeIds: string[]; dates: string[] }) {
+    const shift = await this.prisma.shift.findUnique({ where: { id: input.shiftId } });
+    if (!shift || shift.corporateOrgId !== actor.organisationId) {
+      throw new NotFoundException("Shift not found in this corporate");
+    }
+
+    const employees = await this.prisma.employee.findMany({ where: { id: { in: input.employeeIds } } });
+    const validEmployeeIds = new Set(
+      employees.filter((e) => e.corporateOrgId === actor.organisationId).map((e) => e.id),
+    );
+    if (validEmployeeIds.size === 0) {
+      throw new BadRequestException("None of the given employees belong to this corporate");
+    }
+
+    const entries = [];
+    for (const employeeId of validEmployeeIds) {
+      for (const date of input.dates) {
+        entries.push(
+          this.prisma.rosterEntry.upsert({
+            where: { employeeId_shiftId_date: { employeeId, shiftId: input.shiftId, date: new Date(date) } },
+            create: { employeeId, shiftId: input.shiftId, date: new Date(date), status: "OPTED_IN", source: "ADMIN" },
+            update: { status: "OPTED_IN", version: { increment: 1 } },
+          }),
+        );
+      }
+    }
+    return Promise.all(entries);
+  }
+
+  /** All roster entries for this corporate across an optional shift/date-range filter — powers the Rosters screen. */
+  async listForCorporate(
+    actor: AuthenticatedUser,
+    filters: { shiftId?: string; from?: string; to?: string },
+  ) {
+    return this.prisma.rosterEntry.findMany({
+      where: {
+        employee: { corporateOrgId: actor.organisationId },
+        ...(filters.shiftId ? { shiftId: filters.shiftId } : {}),
+        ...(filters.from || filters.to
+          ? {
+              date: {
+                ...(filters.from ? { gte: new Date(filters.from) } : {}),
+                ...(filters.to ? { lte: new Date(filters.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      include: { employee: true, shift: true },
+      orderBy: { date: "asc" },
+    });
+  }
+
   async cancel(actor: AuthenticatedUser, rosterEntryId: string) {
     const entry = await this.prisma.rosterEntry.findUnique({
       where: { id: rosterEntryId },

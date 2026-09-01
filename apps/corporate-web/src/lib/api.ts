@@ -74,7 +74,26 @@ export interface TransportPlan {
   status: string;
   version: number;
   planDate: string;
-  metadata: { employeesRequiringTransport?: number; tripsGenerated?: number; exceptionsRaised?: number } | null;
+  metadata: {
+    employeesRequiringTransport?: number;
+    tripsGenerated?: number;
+    exceptionsRaised?: number;
+    vehiclesRequired?: number;
+    driversRequired?: number;
+    guardsRequired?: number;
+    unassignedEmployees?: number;
+  } | null;
+}
+
+export interface RosterEntry {
+  id: string;
+  employeeId: string;
+  shiftId: string;
+  date: string;
+  status: string;
+  source: string;
+  employee: Employee;
+  shift: Shift;
 }
 
 export interface PlanException {
@@ -229,6 +248,18 @@ export const api = {
     token: string,
     input: { employeeId: string; shiftId: string; date: string; status: string },
   ) => apiFetch<unknown>("/roster-entries", { method: "POST", body: input, token }),
+  listRosterEntries: (token: string, filters?: { shiftId?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.shiftId) params.set("shiftId", filters.shiftId);
+    if (filters?.from) params.set("from", filters.from);
+    if (filters?.to) params.set("to", filters.to);
+    const qs = params.toString();
+    return apiFetch<RosterEntry[]>(`/roster-entries${qs ? `?${qs}` : ""}`, { token });
+  },
+  bulkUpsertRoster: (token: string, input: { shiftId: string; employeeIds: string[]; dates: string[] }) =>
+    apiFetch<unknown>("/roster-entries/bulk", { method: "POST", body: input, token }),
+  cancelRosterEntry: (token: string, id: string) =>
+    apiFetch<RosterEntry>(`/roster-entries/${id}/cancel`, { method: "POST", token }),
 
   generatePlan: (token: string, input: { shiftId: string; planDate: string }) =>
     apiFetch<TransportPlan>("/plans/generate", { method: "POST", body: input, token }),

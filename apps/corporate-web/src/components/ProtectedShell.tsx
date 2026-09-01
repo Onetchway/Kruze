@@ -3,43 +3,59 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { api, Organisation } from "@/lib/api";
 
 const CORPORATE_ROLES = ["CORPORATE_TRANSPORT_ADMIN", "CORPORATE_HR"];
 const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
 
 function navItemsForRole(role: string) {
-  const items = [{ href: "/dashboard", label: "Dashboard" }];
+  const items = [{ href: "/dashboard", label: "Dashboard", icon: "▦" }];
   if (CORPORATE_ROLES.includes(role)) {
     items.push(
-      { href: "/employees", label: "Employees" },
-      { href: "/signup-requests", label: "Signup Requests" },
-      { href: "/shifts", label: "Shifts" },
-      { href: "/locations", label: "Drop Locations" },
-      { href: "/zones", label: "Zones" },
-      { href: "/contracts", label: "Contracts" },
+      { href: "/employees", label: "Employees", icon: "👥" },
+      { href: "/signup-requests", label: "Signup Requests", icon: "📥" },
+      { href: "/rosters", label: "Rosters", icon: "📅" },
+      { href: "/shifts", label: "Shifts", icon: "⏱" },
+      { href: "/locations", label: "Drop Locations", icon: "📍" },
+      { href: "/zones", label: "Zones", icon: "🗺" },
+      { href: "/contracts", label: "Contracts", icon: "📄" },
     );
   }
   if (FLEET_ROLES.includes(role)) {
     items.push(
-      { href: "/fleet", label: "Fleet" },
-      { href: "/drivers", label: "Drivers" },
-      { href: "/operational-mis", label: "Operational MIS" },
+      { href: "/fleet", label: "Fleet", icon: "🚐" },
+      { href: "/drivers", label: "Drivers", icon: "👤" },
+      { href: "/operational-mis", label: "Operational MIS", icon: "📊" },
     );
   }
-  items.push({ href: "/connections", label: CORPORATE_ROLES.includes(role) ? "My Fleet" : "Corporates" });
-  items.push({ href: "/trips", label: "Trips" });
+  items.push({ href: "/connections", label: CORPORATE_ROLES.includes(role) ? "My Fleet" : "Corporates", icon: "🔗" });
+  items.push({ href: "/trips", label: "Trips", icon: "🗺" });
   if (CORPORATE_ROLES.includes(role)) {
-    items.push({ href: "/settings", label: "Settings" });
+    items.push({ href: "/settings", label: "Settings", icon: "⚙" });
   }
   return items;
 }
 
-export function ProtectedShell({ children }: { children: React.ReactNode }) {
+function roleLabel(role: string): string {
+  switch (role) {
+    case "CORPORATE_TRANSPORT_ADMIN":
+      return "Transport Admin";
+    case "CORPORATE_HR":
+      return "HR Admin";
+    case "VENDOR_ADMIN":
+      return "Vendor Admin";
+    case "FLEET_OPERATOR_ADMIN":
+      return "Fleet Operator";
+    default:
+      return role;
+  }
+}
+
+export function ProtectedShell({ children, title, subtitle }: { children: React.ReactNode; title?: string; subtitle?: string }) {
   const { session, ready, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [globalOrgId, setGlobalOrgId] = useState<string | null>(null);
+  const [org, setOrg] = useState<Organisation | null>(null);
 
   useEffect(() => {
     if (ready && !session) {
@@ -49,7 +65,7 @@ export function ProtectedShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!session) return;
-    api.getMyOrganisation(session.accessToken).then((org) => setGlobalOrgId(org.globalOrgId)).catch(() => {});
+    api.getMyOrganisation(session.accessToken).then(setOrg).catch(() => {});
   }, [session]);
 
   if (!ready || !session) {
@@ -57,32 +73,51 @@ export function ProtectedShell({ children }: { children: React.ReactNode }) {
   }
 
   const navItems = navItemsForRole(session.role);
+  const initials = (org?.displayName ?? "K")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="app-shell">
       <aside className="app-nav">
-        <h1>Kruze</h1>
-        {globalOrgId && (
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -16, marginBottom: 20 }}>
-            Your Kruze ID
-            <br />
-            <strong style={{ color: "var(--text)" }}>{globalOrgId}</strong>
-          </div>
-        )}
+        <div className="app-nav-brand">
+          <span className="app-nav-logo">K</span>
+          <span>Kruze</span>
+        </div>
         <nav>
           {navItems.map((item) => (
-            <a key={item.href} href={item.href} style={pathname === item.href ? { background: "var(--bg)" } : undefined}>
+            <a key={item.href} href={item.href} className={pathname === item.href ? "active" : undefined}>
+              <span className="nav-icon">{item.icon}</span>
               {item.label}
             </a>
           ))}
         </nav>
-        <div style={{ marginTop: 32 }}>
-          <button className="secondary" onClick={logout}>
+        <div className="app-nav-profile">
+          <div className="app-nav-profile-card">
+            <span className="avatar">{initials}</span>
+            <div>
+              <div className="name">{org?.displayName ?? "Your organisation"}</div>
+              <div className="role">{roleLabel(session.role)}</div>
+              {org?.globalOrgId && <div className="kruze-id">{org.globalOrgId}</div>}
+            </div>
+          </div>
+          <button className="secondary" onClick={logout} style={{ width: "100%", marginTop: 10 }}>
             Log out
           </button>
         </div>
       </aside>
-      <main className="app-main">{children}</main>
+      <main className="app-main">
+        {(title || subtitle) && (
+          <div className="page-header">
+            {title && <h2>{title}</h2>}
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

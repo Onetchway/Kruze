@@ -4,6 +4,7 @@ import { ShiftService } from "./shift.service";
 import { RosterService } from "./roster.service";
 import { CreateShiftDto } from "./dto/create-shift.dto";
 import { UpsertRosterEntryDto } from "./dto/upsert-roster-entry.dto";
+import { BulkUpsertRosterDto } from "./dto/bulk-upsert-roster.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../authz/roles.guard";
 import { Roles } from "../authz/roles.decorator";
@@ -39,6 +40,24 @@ export class RosterController {
   @Audited({ action: "ROSTER_ENTRY_UPSERTED", resourceType: "RosterEntry" })
   upsert(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpsertRosterEntryDto) {
     return this.roster.upsertEntry(user, dto);
+  }
+
+  @Post("bulk")
+  @UseGuards(RolesGuard)
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Audited({ action: "ROSTER_ENTRY_UPSERTED", resourceType: "RosterEntry" })
+  bulkUpsert(@CurrentUser() user: AuthenticatedUser, @Body() dto: BulkUpsertRosterDto) {
+    return this.roster.bulkUpsert(user, dto);
+  }
+
+  @Get()
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("shiftId") shiftId?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.roster.listForCorporate(user, { shiftId, from, to });
   }
 
   @Post(":id/cancel")

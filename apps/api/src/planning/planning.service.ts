@@ -94,13 +94,17 @@ export class PlanningService {
 
     let tripsCreated = 0;
     let exceptionsRaised = 0;
+    let guardsAssigned = 0;
+    let unassignedEmployees = 0;
 
     for (const group of groups) {
       const outcome = await this.planGroup(actor, plan.id, shift, input.planDate, group, vendorOrgIds);
       if (outcome.tripId) {
         tripsCreated += 1;
+        if (outcome.guardAssigned) guardsAssigned += 1;
       } else {
         exceptionsRaised += 1;
+        unassignedEmployees += group.length;
       }
     }
 
@@ -109,7 +113,15 @@ export class PlanningService {
       where: { id: plan.id },
       data: {
         status: finalStatus,
-        metadata: { employeesRequiringTransport: demand.length, tripsGenerated: tripsCreated, exceptionsRaised },
+        metadata: {
+          employeesRequiringTransport: demand.length,
+          tripsGenerated: tripsCreated,
+          exceptionsRaised,
+          vehiclesRequired: tripsCreated,
+          driversRequired: tripsCreated,
+          guardsRequired: guardsAssigned,
+          unassignedEmployees,
+        },
       },
     });
 
@@ -204,7 +216,7 @@ export class PlanningService {
     planDate: string,
     group: EligibleDemandEmployee[],
     vendorOrgIds: string[],
-  ): Promise<{ tripId?: string }> {
+  ): Promise<{ tripId?: string; guardAssigned?: boolean }> {
     const scheduledStartAt = shiftStartAt(new Date(planDate), shift.startTime);
     // Route the group's stops by distance so "last passenger" (used by the
     // LAST_DROP_RESTRICTION safety rule below) reflects an actual pickup
@@ -262,7 +274,7 @@ export class PlanningService {
         source: "AUTO",
       });
 
-      return { tripId: trip.id };
+      return { tripId: trip.id, guardAssigned: Boolean(guardId) };
     }
 
     await this.raiseException(planId, "NO_ELIGIBLE_VEHICLE", { groupSize: group.length, vendorsTried: vendorOrgIds.length });
