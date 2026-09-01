@@ -111,6 +111,43 @@ export interface Trip {
   scheduledStartAt: string;
 }
 
+export interface Incident {
+  id: string;
+  tripId: string | null;
+  category: string;
+  severity: string;
+  status: string;
+  description: string | null;
+  correctiveAction: string | null;
+  createdAt: string;
+  closedAt: string | null;
+}
+
+export interface SafetyRule {
+  id: string;
+  type: string;
+  config: Record<string, unknown>;
+  mandatory: boolean;
+}
+
+export interface SafetyPolicy {
+  id: string;
+  name: string;
+  version: number;
+  active: boolean;
+  rules: SafetyRule[];
+}
+
+export interface ComplianceRule {
+  id: string;
+  scope: string;
+  subjectType: string;
+  docType: string;
+  maxExpiryGraceDays: number;
+  severity: string;
+  active: boolean;
+}
+
 export interface OrganisationLookup {
   id: string;
   globalOrgId: string;
@@ -353,6 +390,27 @@ export const api = {
       effectiveTo?: string;
     },
   ) => apiFetch<RateCard>(`/contracts/${contractId}/rate-cards`, { method: "POST", body: input, token }),
+
+  listComplianceRules: (token: string, subjectType?: string) =>
+    apiFetch<ComplianceRule[]>(`/compliance-rules${subjectType ? `?subjectType=${subjectType}` : ""}`, { token }),
+  createComplianceRule: (
+    token: string,
+    input: { scope: string; scopeOrgId?: string; subjectType: string; docType: string; maxExpiryGraceDays?: number; severity?: string },
+  ) => apiFetch<ComplianceRule>("/compliance-rules", { method: "POST", body: input, token }),
+
+  listIncidents: (token: string, status?: string) =>
+    apiFetch<Incident[]>(`/incidents${status ? `?status=${encodeURIComponent(status)}` : ""}`, { token }),
+  closeIncident: (token: string, id: string, correctiveAction: string) =>
+    apiFetch<Incident>(`/incidents/${id}/close`, { method: "POST", body: { correctiveAction }, token }),
+
+  listSafetyPolicies: (token: string) => apiFetch<SafetyPolicy[]>("/safety-policies", { token }),
+  createSafetyPolicy: (token: string, name: string) =>
+    apiFetch<SafetyPolicy>("/safety-policies", { method: "POST", body: { name }, token }),
+  addSafetyRule: (
+    token: string,
+    policyId: string,
+    input: { type: string; config: Record<string, unknown>; mandatory?: boolean },
+  ) => apiFetch<SafetyRule>(`/safety-policies/${policyId}/rules`, { method: "POST", body: input, token }),
 
   listDriverPaymentVouchers: (token: string) => apiFetch<DriverPaymentVoucher[]>("/driver-payment-vouchers", { token }),
   generateDriverPaymentVoucher: (token: string, input: { driverId: string; periodStart: string; periodEnd: string }) =>

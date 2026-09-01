@@ -44,10 +44,23 @@ export class ComplianceRuleController {
   constructor(private readonly rules: ComplianceRuleService) {}
 
   @Post()
-  @Roles(PlatformRole.KRUZE_SUPER_ADMIN, PlatformRole.CORPORATE_SAFETY_COMPLIANCE, PlatformRole.VENDOR_ADMIN)
+  @Roles(
+    PlatformRole.KRUZE_SUPER_ADMIN,
+    PlatformRole.CORPORATE_SAFETY_COMPLIANCE,
+    PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+    PlatformRole.VENDOR_ADMIN,
+  )
   @Audited({ action: "COMPLIANCE_RULE_CREATED", resourceType: "ComplianceRule" })
-  create(@Body() dto: CreateComplianceRuleDto) {
-    return this.rules.create(dto);
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateComplianceRuleDto) {
+    if (user.role !== "KRUZE_SUPER_ADMIN") {
+      if (dto.scope === "GLOBAL") {
+        throw new ForbiddenException("Only a Kruze admin can create a GLOBAL compliance rule");
+      }
+      if (dto.scopeOrgId && dto.scopeOrgId !== user.organisationId) {
+        throw new ForbiddenException("Cannot create a compliance rule scoped to another organisation");
+      }
+    }
+    return this.rules.create({ ...dto, scopeOrgId: dto.scopeOrgId ?? (dto.scope !== "GLOBAL" ? user.organisationId : undefined) });
   }
 
   @Get()

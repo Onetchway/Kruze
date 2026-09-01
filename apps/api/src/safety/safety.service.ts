@@ -44,6 +44,14 @@ export class SafetyService {
     return this.prisma.safetyPolicy.create({ data: { corporateOrgId, name } });
   }
 
+  listPolicies(corporateOrgId: string) {
+    return this.prisma.safetyPolicy.findMany({
+      where: { corporateOrgId },
+      include: { rules: true },
+      orderBy: { version: "desc" },
+    });
+  }
+
   async addRule(actor: AuthenticatedUser, policyId: string, input: { type: SafetyRuleType; config: unknown; mandatory?: boolean }) {
     const policy = await this.prisma.safetyPolicy.findUnique({ where: { id: policyId } });
     if (!policy) {

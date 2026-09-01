@@ -15,10 +15,13 @@ function navItemsForRole(role: string) {
       { href: "/employees", label: "Employees", icon: "👥" },
       { href: "/signup-requests", label: "Signup Requests", icon: "📥" },
       { href: "/rosters", label: "Rosters", icon: "📅" },
+      { href: "/live-ops", label: "Live Operations", icon: "🛰" },
+      { href: "/safety", label: "Safety", icon: "🛡" },
       { href: "/shifts", label: "Shifts", icon: "⏱" },
       { href: "/locations", label: "Drop Locations", icon: "📍" },
       { href: "/zones", label: "Zones", icon: "🗺" },
       { href: "/contracts", label: "Contracts", icon: "📄" },
+      { href: "/compliance", label: "Compliance", icon: "✅" },
     );
   }
   if (FLEET_ROLES.includes(role)) {

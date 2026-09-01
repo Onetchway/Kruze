@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
 import { SafetyService } from "./safety.service";
 import { CreateSafetyPolicyDto } from "./dto/create-safety-policy.dto";
@@ -26,5 +26,10 @@ export class SafetyController {
   @Audited({ action: "SAFETY_RULE_ADDED", resourceType: "SafetyRule" })
   addRule(@CurrentUser() user: AuthenticatedUser, @Param("id") policyId: string, @Body() dto: CreateSafetyRuleDto) {
     return this.safety.addRule(user, policyId, dto);
+  }
+
+  @Get()
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.safety.listPolicies(user.organisationId);
   }
 }
