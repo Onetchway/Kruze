@@ -4,7 +4,8 @@ import { AuthenticatedUser } from "../common/request-context";
 import { NotificationService } from "../notification/notification.service";
 import { TripService } from "../trip/trip.service";
 import { canTransition } from "../trip/trip-state-machine";
-import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { KafkaProducerService } from "../eventbus/kafka-producer.service";
+import { INCIDENT_EVENTS_TOPIC } from "../eventbus/topics";
 import { IncidentCategory, IncidentSeverity } from "../../generated/prisma";
 
 @Injectable()
@@ -13,7 +14,7 @@ export class IncidentService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
     private readonly trips: TripService,
-    private readonly realtime: RealtimeGateway,
+    private readonly kafka: KafkaProducerService,
   ) {}
 
   async report(
@@ -34,8 +35,7 @@ export class IncidentService {
     const trip = input.tripId ? await this.prisma.trip.findUnique({ where: { id: input.tripId } }) : null;
     if (trip) {
       const payload = { incidentId: incident.id, tripId: input.tripId, category: incident.category, severity: incident.severity };
-      this.realtime.emitToOrg(trip.corporateOrgId, "incident.created", payload);
-      this.realtime.emitToOrg(trip.vendorOrgId, "incident.created", payload);
+      this.kafka.publish(INCIDENT_EVENTS_TOPIC, incident.id, "incident.created", [trip.corporateOrgId, trip.vendorOrgId], payload);
     }
 
     if (input.category === "SOS" && input.tripId) {
@@ -76,8 +76,7 @@ export class IncidentService {
     });
     if (incident.trip) {
       const payload = { incidentId, tripId: incident.tripId };
-      this.realtime.emitToOrg(incident.trip.corporateOrgId, "incident.closed", payload);
-      this.realtime.emitToOrg(incident.trip.vendorOrgId, "incident.closed", payload);
+      this.kafka.publish(INCIDENT_EVENTS_TOPIC, incidentId, "incident.closed", [incident.trip.corporateOrgId, incident.trip.vendorOrgId], payload);
     }
     return closed;
   }

@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
-import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { KafkaProducerService } from "../eventbus/kafka-producer.service";
+import { TRACKING_EVENTS_TOPIC } from "../eventbus/topics";
 import { haversineDistanceMeters } from "./geo.util";
 
 const FUTURE_TOLERANCE_MS = 60_000;
@@ -17,7 +18,7 @@ const FUTURE_TOLERANCE_MS = 60_000;
 export class TrackingService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly realtime: RealtimeGateway,
+    private readonly kafka: KafkaProducerService,
   ) {}
 
   async ingest(
@@ -69,8 +70,7 @@ export class TrackingService {
 
     if (input.tripId && trip) {
       const payload = { tripId: input.tripId, latitude: input.latitude, longitude: input.longitude, speed: input.speed, recordedAt: event.recordedAt };
-      this.realtime.emitToOrg(trip.corporateOrgId, "trip.location", payload);
-      this.realtime.emitToOrg(trip.vendorOrgId, "trip.location", payload);
+      this.kafka.publish(TRACKING_EVENTS_TOPIC, input.tripId, "trip.location", [trip.corporateOrgId, trip.vendorOrgId], payload);
     }
 
     return event;

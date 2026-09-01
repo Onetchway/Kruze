@@ -512,6 +512,23 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Written only by KafkaConsumerService, never by the synchronous request
+// path that publishes to Kafka — this table is the proof that events are
+// genuinely consumed asynchronously off the real Kafka log, not just
+// published into a topic nobody reads.
+model EventLogEntry {
+  id         String   @id @default(uuid())
+  topic      String
+  eventKey   String
+  event      String
+  payload    Json
+  consumedAt DateTime @default(now())
+
+  @@index([topic, consumedAt])
+  @@index([event])
+  @@map("event_log_entries")
+}
+
 // ---------------------------------------------------------------------------
 // Documents & Compliance engine
 // ---------------------------------------------------------------------------

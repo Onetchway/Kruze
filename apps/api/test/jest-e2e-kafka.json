@@ -2,9 +2,9 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testRegex": "kafka-eventbus\\.e2e-spec\\.ts$",
   "transform": {
     "^.+\\.ts$": "ts-jest"
   },
-  "testPathIgnorePatterns": ["/node_modules/", "/generated/", "kafka-eventbus.e2e-spec.ts"]
+  "testPathIgnorePatterns": ["/node_modules/", "/generated/"]
 }

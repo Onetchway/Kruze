@@ -35,11 +35,13 @@ import { LocationModule } from "./location/location.module";
 import { ZoneModule } from "./zone/zone.module";
 import { DriverPaymentModule } from "./driver-payment/driver-payment.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { KafkaModule } from "./eventbus/kafka.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     RealtimeModule,
+    KafkaModule,
     // Global baseline rate limit (defense in depth); sensitive auth/OTP
     // endpoints layer a much stricter @Throttle(...) on top of this.
     // Skipped under Jest (e2e suites legitimately log in far more than

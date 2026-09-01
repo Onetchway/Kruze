@@ -145,15 +145,24 @@ required beyond `realtime` itself.
   their JWT access token and are joined to an `org:<organisationId>` room
   — a payload can only ever reach the organisations that were actually
   passed to `emitToOrg`, so tenant isolation holds over the socket the
-  same way it does over REST. `trip.status`/`trip.assignment` (from
-  `trip`), `trip.location` (from `tracking`), and `incident.created`/
-  `incident.closed` (from `incident`) are emitted today; `control-room-web`
-  subscribes to all of them and falls back to a 30s poll for reconnect
-  gaps. This is the honest substitute for a real Kafka-backed event
-  backbone in an environment with no message broker available — modules
-  still call each other directly for domain logic, this only adds a push
-  channel on top for connected browsers. A genuine broker-backed backbone
-  (spec §16) is still future work once real infrastructure exists.
+  same way it does over REST. `control-room-web` subscribes to all
+  its events and falls back to a 30s poll for reconnect gaps.
+
+**`eventbus`** (backend module) — a real Kafka event backbone (spec
+  §16), not a substitute: `trip`, `incident`, and `tracking` publish
+  domain events (`kruze.trip.events`, `kruze.incident.events`,
+  `kruze.tracking.events`) via `KafkaProducerService`; a genuinely
+  separate async `KafkaConsumerService` consumer group fans each
+  message out to `realtime.emitToOrg` (so `trip.status`/
+  `trip.assignment`/`trip.location`/`incident.created`/
+  `incident.closed` keep reaching connected browsers/mobile clients
+  exactly as before) and persists it to `EventLogEntry` — written only
+  by the consumer, proving genuine decoupled consumption rather than a
+  topic nobody reads. Publishing is fire-and-forget: a broker outage
+  never fails the underlying business request, only delays its live
+  push and durable log entry. See `src/eventbus/README.md` for how to
+  run a real broker locally (no Docker needed) and how this was
+  verified end to end against one.
 
 **`apps/employee-app`**: Expo/React Native (see its own README for setup
 and how it was verified without a simulator). Request transport access →
