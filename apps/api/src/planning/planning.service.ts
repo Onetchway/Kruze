@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
 import { RosterService } from "../roster/roster.service";
@@ -9,6 +9,7 @@ import { TripService } from "../trip/trip.service";
 import { NotificationService } from "../notification/notification.service";
 import { MaintenanceService } from "../maintenance/maintenance.service";
 import { clusterByProximity, orderRouteByDistance } from "./geo-routing";
+import { OptimizerClient } from "./optimizer-client";
 import { ExceptionType } from "../../generated/prisma";
 
 const DEFAULT_GROUP_SIZE = 6;
@@ -33,9 +34,19 @@ interface EligibleDemandEmployee {
  * geo-routing.ts) rather than arbitrary roster order — both degrade to
  * the old behavior (fixed-size chunking / roster order) if a corporate
  * hasn't captured employee home coordinates.
+ *
+ * When every employee in the shift's demand has home coordinates, this
+ * first tries the real OR-Tools CVRP solver (apps/optimizer-service,
+ * via OptimizerClient) to jointly solve grouping AND stop order in one
+ * optimization — a genuine solver, not a heuristic. That service being
+ * unreachable, slow, or unable to find a solution silently falls back
+ * to the clusterByProximity/orderRouteByDistance heuristic above, so a
+ * plan generation is never blocked by it.
  */
 @Injectable()
 export class PlanningService {
+  private readonly logger = new Logger(PlanningService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly roster: RosterService,
@@ -45,6 +56,7 @@ export class PlanningService {
     private readonly trips: TripService,
     private readonly notifications: NotificationService,
     private readonly maintenance: MaintenanceService,
+    private readonly optimizer: OptimizerClient,
   ) {}
 
   async generate(actor: AuthenticatedUser, input: { shiftId: string; planDate: string }) {
@@ -72,15 +84,13 @@ export class PlanningService {
     const demand = await this.roster.listDemand(input.shiftId, input.planDate);
     const vendorOrgIds = await this.eligibleVendorOrgIds(actor.organisationId);
 
-    const groups = clusterByProximity(
-      demand.map((d) => ({
-        employeeId: d.employeeId,
-        gender: d.employee.gender,
-        latitude: d.employee.homeLatitude,
-        longitude: d.employee.homeLongitude,
-      })),
-      DEFAULT_GROUP_SIZE,
-    );
+    const demandPoints: EligibleDemandEmployee[] = demand.map((d) => ({
+      employeeId: d.employeeId,
+      gender: d.employee.gender,
+      latitude: d.employee.homeLatitude,
+      longitude: d.employee.homeLongitude,
+    }));
+    const groups = await this.groupAndRoute(demandPoints);
 
     let tripsCreated = 0;
     let exceptionsRaised = 0;
@@ -155,6 +165,29 @@ export class PlanningService {
 
   exceptionsForPlan(planId: string) {
     return this.prisma.planException.findMany({ where: { planId }, orderBy: { createdAt: "asc" } });
+  }
+
+  /**
+   * Tries the real OR-Tools CVRP solver first (only meaningful when every
+   * employee has home coordinates); falls back to the clusterByProximity
+   * + orderRouteByDistance heuristic otherwise or on any solver failure.
+   */
+  private async groupAndRoute(demandPoints: EligibleDemandEmployee[]): Promise<EligibleDemandEmployee[][]> {
+    const hasAllCoordinates = demandPoints.length > 0 && demandPoints.every((d) => d.latitude !== null && d.longitude !== null);
+    if (hasAllCoordinates) {
+      const depot = centroid(demandPoints as Array<{ latitude: number; longitude: number }>);
+      const routes = await this.optimizer.solveCvrp(
+        depot,
+        demandPoints.map((d) => ({ id: d.employeeId, latitude: d.latitude!, longitude: d.longitude! })),
+        DEFAULT_GROUP_SIZE,
+      );
+      if (routes) {
+        this.logger.log(`OR-Tools solved ${routes.length} route(s) for ${demandPoints.length} employee(s)`);
+        const byEmployeeId = new Map(demandPoints.map((d) => [d.employeeId, d]));
+        return routes.map((route) => route.stopIds.map((id) => byEmployeeId.get(id)!));
+      }
+    }
+    return clusterByProximity(demandPoints, DEFAULT_GROUP_SIZE);
   }
 
   private async eligibleVendorOrgIds(corporateOrgId: string): Promise<string[]> {
@@ -307,4 +340,13 @@ function shiftStartAt(date: Date, startTime: string): Date {
   const start = new Date(date);
   start.setUTCHours(hours, minutes, 0, 0);
   return start;
+}
+
+/** Simple mean-position depot for the CVRP solve — there's no corporate "office" coordinate in the schema today. */
+function centroid(points: Array<{ latitude: number; longitude: number }>): { latitude: number; longitude: number } {
+  const sum = points.reduce((acc, p) => ({ latitude: acc.latitude + p.latitude, longitude: acc.longitude + p.longitude }), {
+    latitude: 0,
+    longitude: 0,
+  });
+  return { latitude: sum.latitude / points.length, longitude: sum.longitude / points.length };
 }

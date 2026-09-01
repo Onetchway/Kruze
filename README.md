@@ -58,13 +58,18 @@ live trip execution and commercial reconciliation:
   - `planning` — the automation loop: roster demand → grouping → eligible
     vendor/resource filtering (compliance + availability) → safety hard
     constraints → auto driver/vehicle/guard allocation → exceptions →
-    versioned plan → publish. Grouping clusters employees by home-location
-    proximity (nearest-neighbor clustering) and each group's stop order is
-    a nearest-neighbor + 2-opt route (`geo-routing.ts`, unit-tested)
-    instead of arbitrary roster order — geography-aware, but still a
-    heuristic, not an exact MILP/OR-Tools solver. Degrades gracefully to
-    the old fixed-size/roster-order behavior when a corporate hasn't
-    captured employee home coordinates.
+    versioned plan → publish. When every employee in the shift's demand
+    has home coordinates, grouping AND stop order are solved jointly by
+    a real OR-Tools CVRP solver (`apps/optimizer-service`, a separate
+    Python/Flask service — see its README) via `OptimizerClient`; that
+    service being unreachable, slow, or unable to find a solution falls
+    back to a nearest-neighbor-clustering + nearest-neighbor/2-opt-route
+    heuristic (`geo-routing.ts`, unit-tested) — geography-aware but not
+    an exact solver — which is also what's used outright when any
+    employee lacks coordinates. Verified end to end against a real
+    running OR-Tools solve: two 5km-apart 5-employee clusters produced
+    exactly two trips, each with the correct 5 employees, never mixed
+    (see `apps/optimizer-service/README.md`).
   - `safety` — configurable safety policies/rules (last-drop restriction,
     mandatory guard, max ride time), evaluated as hard constraints and
     persisted with policy version + context for audit.
@@ -179,14 +184,15 @@ employee can't pull another's pickup code. Managed with npm (excluded
 from the pnpm workspace) since Expo/React Native expects its own
 lockfile/`node_modules` layout.
 
-Not yet built: a dedicated Operator/Vendor Web (Vendor/Fleet Operator
-accounts currently use `corporate-web`'s shared shell), Driver/Guard
-mobile apps (same pattern as `employee-app`, but `Driver`/`Guard` have no
-`userId` link yet — not built in this pass), a genuine VRP/OR-Tools
-optimizer (`planning` is still a heuristic, not an exact solver — see
-`planning` above), HRMS/SSO integrations, and independent security
-hardening beyond the audit already done in this repo (VAPT, load
-testing) — see §17–21 of the specs for that scope.
+Not yet built: HRMS/SSO integrations (no named target vendor/
+credentials to integrate against), native mobile builds (no iOS/
+Android simulator in any environment this has run in — verified
+instead via `expo export --platform web` + a headless browser against
+the live API), and independent third-party security hardening beyond
+what's in this repo already (a real VAPT engagement) — see §17–21 of
+the specs for that scope. `apps/employee-app`/`driver-app`/`guard-app`,
+a real Kafka event backbone, and a genuine OR-Tools CVRP solver are all
+built (see `planning` and `eventbus` above).
 
 ## Getting started
 
