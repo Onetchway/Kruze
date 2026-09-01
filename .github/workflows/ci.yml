@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kruze
+          POSTGRES_PASSWORD: kruze
+          POSTGRES_DB: kruze
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kruze"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://kruze:kruze@localhost:5432/kruze?schema=public
+      JWT_ACCESS_SECRET: ci-only-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: pnpm exec prisma generate
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Run migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+
+      - name: Unit tests
+        working-directory: apps/api
+        run: pnpm exec jest --config jest.config.js --passWithNoTests
+
+      - name: E2E tests (tenant isolation)
+        working-directory: apps/api
+        run: pnpm exec jest --config test/jest-e2e.json --runInBand

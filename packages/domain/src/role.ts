@@ -1,0 +1,21 @@
+/**
+ * Platform-defined role catalogue (§22 Role Matrix). Roles are granted per
+ * organisation membership, never globally, and are combined at
+ * authorization time with relationship and attribute context (see
+ * @kruze/domain authz types) rather than being sufficient on their own.
+ */
+export enum PlatformRole {
+  KRUZE_SUPER_ADMIN = "KRUZE_SUPER_ADMIN",
+  TENANT_ADMIN = "TENANT_ADMIN",
+  CORPORATE_TRANSPORT_ADMIN = "CORPORATE_TRANSPORT_ADMIN",
+  CORPORATE_HR = "CORPORATE_HR",
+  CORPORATE_FINANCE = "CORPORATE_FINANCE",
+  CORPORATE_SAFETY_COMPLIANCE = "CORPORATE_SAFETY_COMPLIANCE",
+  FLEET_OPERATOR_ADMIN = "FLEET_OPERATOR_ADMIN",
+  VENDOR_ADMIN = "VENDOR_ADMIN",
+  SUPERVISOR_DISPATCHER = "SUPERVISOR_DISPATCHER",
+  DRIVER = "DRIVER",
+  GUARD = "GUARD",
+  EMPLOYEE = "EMPLOYEE",
+  AUDITOR = "AUDITOR",
+}

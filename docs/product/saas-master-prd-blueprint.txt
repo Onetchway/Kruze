@@ -1,0 +1,989 @@
+
+KRUZE ENTERPRISE MOBILITY OS
+Master Product Requirements Document (PRD) + SaaS Architecture + Technical Build Blueprint
+Purpose: This document is intended to be sufficiently detailed for an engineering team or coding agent to begin system design, database design, API contracts, UI implementation, and phased development without relying on the earlier conversation.
+Core product principle: The platform plans, assigns, optimizes, executes and monitors employee transportation automatically. Humans manage exceptions.
+Document status: Build baseline v1.0 | September 2026
+1. Product Definition
+Kruze is a multi-tenant, multi-organisation, relationship-aware SaaS platform for enterprise employee transportation, fleet operations, vendor management, driver/vehicle compliance, routing, safety, trip execution, commercial reconciliation and analytics.
+It must support two primary go-to-market models simultaneously:
+Model
+SaaS Customer / Account Owner
+Downstream Access
+Corporate-led
+Corporate uses Kruze directly
+Corporate onboards multiple fleet operators/vendors; vendors manage drivers, vehicles and guards.
+Operator-led
+Fleet Operator or Vendor uses Kruze as its technology platform
+Operator onboards corporate customers and manages fleet, drivers and day-to-day transport operations; each corporate receives a restricted corporate portal.
+Kruze remains the platform authority in both models. The organisation that brings a corporate can become its Operating Partner, but the corporate retains its corporate tenant/data context and can later connect additional vendors if its plan/permissions allow.
+2. Non-Negotiable Architecture Principles
+One Kruze platform, not separate corporate and fleet products.
+Every major real-world entity has one global Kruze identity; do not duplicate a driver or vehicle merely because it participates in multiple organisations.
+Organisations and resources are connected through explicit relationship/assignment records, not rigid foreign-key ownership alone.
+RBAC alone is insufficient: authorization must combine RBAC, relationship context and attributes (organisation, corporate, city, contract, trip, resource ownership and assignment).
+Tenant isolation must be enforced server-side on every query and mutation.
+Supervisor is an exception manager; normal transport planning is automated.
+Safety, compliance and contract constraints are hard constraints in planning/allocation where configured.
+Every operational override must be auditable.
+Corporate employee/HR data must not automatically become visible to a vendor beyond fields required to execute assigned transport.
+Vendor/fleet resources not assigned to a corporate must remain invisible to that corporate.
+Support/admin impersonation must be explicit, time-bound, reason-coded and fully audited.
+3. Organisation & Relationship Model
+3.1 Organisation Types
+Kruze Platform
+Corporate
+Fleet Operator
+Transport Vendor
+Sub-vendor / Resource Partner
+An organisation may carry more than one business role. A Fleet Operator may also be a Vendor. Do not encode mutually exclusive organisation types if business reality requires multiple roles.
+3.2 Primary Relationship Types
+Relationship
+Meaning
+Kruze → Organisation
+Platform subscription/tenant relationship.
+Fleet Operator → Corporate
+Operator onboarded/manages corporate transport using Kruze.
+Corporate → Vendor
+Corporate authorizes vendor to provide transport resources/services.
+Vendor → Driver
+Vendor is authorized to manage/use driver under defined terms.
+Vendor → Vehicle
+Vendor is authorized to manage/deploy vehicle.
+Vendor → Guard
+Vendor manages/assigns guard or escort.
+Corporate → Driver/Vehicle/Guard Assignment
+Resource is eligible/approved for that corporate, normally derived through a vendor relationship.
+Trip → Resource
+Trip-time assignment of vendor, vehicle, driver, guard and employees.
+3.3 Example Network
+KRUZE ├─ Fleet Operator A │   ├─ Corporate Alpha │   ├─ Corporate Beta │   └─ Corporate Gamma │ ├─ Corporate Delta (direct Kruze customer) │   ├─ Vendor A │   ├─ Vendor B │   └─ Vendor C │ └─ Global identities     ├─ Driver Rahul     │   ├─ Vendor A relationship     │   └─ Vendor C relationship     └─ Vehicle DL01AB1234         ├─ Vendor A relationship         └─ corporate deployment history
+3.4 Global Identity
+Entity
+Example Global ID
+Corporate
+KZ-COR-000001
+Fleet Operator
+KZ-FOP-000001
+Vendor
+KZ-VND-000001
+Driver
+KZ-DRV-000001
+Vehicle
+KZ-VEH-000001
+Guard
+KZ-GRD-000001
+Trip
+KZ-TRP-000001
+A driver working with two vendors and three corporates still has one Driver ID. Vendor-specific and corporate-specific status/compliance belongs in relationship/context tables.
+4. Authority & Visibility Model
+Actor
+Primary Authority
+Must NOT automatically access
+Kruze Super Admin
+Platform, subscriptions, global configuration, security, support, tenant activation
+Customer operational/PII data outside permitted support/audit scope.
+Corporate
+Employees, shifts, roster, transport policy, safety policy, vendor relationships, approvals, SLA, reporting
+Vendor resources unrelated to the corporate.
+Fleet Operator
+Its fleet, drivers, guards, maintenance, availability, dispatch and managed-corporate operations
+Corporate HR/payroll or unrelated corporate data.
+Vendor
+Its drivers, vehicles, guards, documents, availability and assigned trips
+Other vendors' resources or unrelated corporate operations.
+Supervisor/Dispatcher
+Authorized live operations and exceptions
+Resources outside assigned organisation/corporate/city scope.
+Driver
+Own profile/availability and assigned trips
+Other drivers or unassigned trips.
+Employee
+Own transport bookings/trips, tracking, OTP, safety and feedback
+Other employees' private trip/profile data.
+Guard
+Assigned escort duties and permitted trip/safety data
+Unassigned trips or unnecessary employee PII.
+5. Complete Application Surfaces
+Surface
+Primary Users
+Purpose
+Kruze Super Admin Console
+Kruze ops/security/support
+Tenant activation, subscriptions, modules, platform audit, integrations, health.
+Corporate Portal
+Transport admin, HR, finance, safety, compliance
+Employees, rosters, vendors, policies, trips, SLA, billing, reports.
+Fleet Operator / Vendor Portal
+Operator/vendor admins and supervisors
+Corporate accounts, drivers, vehicles, guards, compliance, dispatch, maintenance, billing.
+Control Room
+Transport managers/supervisors/dispatchers
+Live map, trip health, exceptions, SOS, replacements, overrides.
+Employee App
+Employees
+Booking, roster, live tracking, OTP, SOS, feedback.
+Driver App
+Drivers
+Assignments, navigation, pickup/drop OTP, no-show, incidents, inspection.
+Guard/Escort App
+Guards
+Duty acceptance, trip safety, presence, SOS, incidents.
+6. Functional Modules — Complete Scope
+6.1 SaaS / Tenant Management
+Organisation onboarding/approval
+Subscription and plans
+Feature flags/module entitlements
+Tenant settings
+Cities/locations
+Branding/white-label controls if offered
+API keys/integration credentials
+Support access
+Tenant suspension/reactivation
+Usage metering
+SaaS invoices
+6.2 Identity, Authentication & Authorization
+Global user identity
+Organisation memberships
+MFA
+SSO/SAML/OIDC for enterprise
+Session/device management
+Roles and granular permissions
+Relationship-based authorization
+Attribute-based policies by city/location/corporate/vendor
+Service accounts/API credentials
+Access reviews
+Impersonation/support session audit
+6.3 Corporate Management
+Corporate profile
+Business units
+Sites/offices
+Departments
+Cost centres
+Transport policies
+Safety policies
+Shift policies
+Cities/service areas
+Holiday calendars
+Corporate admins/users
+Vendor/operator relationships
+Contract/SLA references
+6.4 Employee Management
+Employee master
+Bulk upload
+HRMS sync
+Department/designation/manager/cost centre
+Transport eligibility
+Pickup/drop locations
+Emergency contacts
+Shift mapping
+Status/lifecycle
+Employee-specific exceptions
+Consent/privacy fields
+Trip/booking history
+6.5 Shift & Roster
+Shift templates
+Recurring roster
+Daily/ad-hoc roster
+Bulk roster
+HRMS-generated roster
+Leave/WFH exclusion
+Cut-off times
+Employee opt-in/opt-out
+Roster validation
+Auto transport-demand generation
+Versioning and change audit
+6.6 Vendor / Fleet Operator Management
+Vendor/operator profile
+Corporate portfolio
+Contracts
+Rate cards
+Service areas
+Vehicle categories
+Capacity commitments
+SLA
+Compliance requirements
+Bank/tax fields as legitimately required
+Performance score
+Suspension/termination
+Relationship start/end history
+6.7 Driver Management
+One global driver identity
+Multiple vendor relationships
+Corporate eligibility
+Availability calendar
+Licence
+Verification documents
+Training
+Medical/police/BGV fields where policy/law requires
+Ratings/violations
+Working-hour/rest constraints
+Vehicle compatibility
+Trip history
+Suspension/blacklist workflow
+6.8 Vehicle / Fleet Management
+One global vehicle identity
+Ownership/operator relationships
+Registration/make/model/category/capacity/fuel
+GPS/IoT device mapping
+Availability
+Corporate eligibility
+Documents
+Inspection
+Maintenance
+Breakdown history
+Odometer
+EV battery/range fields
+Vehicle status lifecycle
+6.9 Guard / Escort Management
+Global guard identity
+Vendor relationship
+Corporate eligibility
+Documents/training
+Availability
+Duty assignment
+Start/end duty
+Presence verification
+SOS/incident
+Performance history
+6.10 Compliance Engine
+Configurable compliance rules
+Global + vendor + corporate + trip-specific requirements
+Vehicle compliance
+Driver compliance
+Guard compliance
+Vendor compliance
+Document issue/expiry
+Approval/rejection
+Expiry alerts
+Grace periods
+Automatic deployment blocking
+Compliance history/audit
+6.11 Contracts, SLA & Rate Cards
+Corporate-vendor contract
+Service period
+Cities/service areas
+Vehicle types
+Capacity commitments
+Rate card versions
+Night/driver/waiting allowances
+Minimum guarantee
+SLA targets
+Penalty rules
+Contract expiry alerts
+Approval workflow
+6.12 Booking / Transport Request
+Employee self-booking
+Admin booking
+Recurring booking
+Cancel/change
+Cut-off rules
+Pickup/drop validation
+Eligibility validation
+Approval where required
+Ad-hoc transport
+Booking notifications
+6.13 Transport Planning Engine
+Demand ingestion
+Employee grouping
+Trip generation
+Vehicle requirement calculation
+Resource eligibility filtering
+Vendor allocation
+Driver allocation
+Vehicle allocation
+Guard requirement determination
+Cost estimate
+Exception generation
+Plan versioning
+Publish/rollback
+6.14 Route Optimization Engine
+Pickup/drop sequencing
+Capacity constraints
+Shift arrival/departure constraints
+Pickup windows
+Maximum ride time
+Traffic/ETA input
+Distance minimization
+Vehicle-count minimization
+Empty-KM minimization
+Cost minimization
+Safety hard constraints
+Back-to-back trip optimization
+EV range/charging constraints
+Re-optimization
+6.15 Safety Policy Engine
+Configurable night thresholds
+Female last-drop restrictions
+Male/female sequencing policies
+Guard/escort requirement
+Safe-zone/geofence rules
+Route deviation threshold
+Unexpected stop
+Overspeed
+GPS loss
+Emergency escalation matrix
+Employee emergency contact policy
+Corporate/city/shift-specific rules
+6.16 Trip Management
+Trip creation
+Corporate/vendor/driver/vehicle/guard context
+Employee manifest
+Route/stops
+Trip state machine
+Driver acceptance
+Start/arrive/pickup/drop/complete
+Cancellation
+No-show
+Breakdown
+SOS
+Manual override
+Trip event ledger
+6.17 OTP Pickup & Drop
+Separate pickup/drop OTP per employee per trip
+Secure generation/expiry
+Driver entry
+Employee app display
+Trip/driver/vehicle/time validation
+GPS/geofence validation
+Attempt limits
+Fallback/authorized override
+Audit record
+Proof-of-service status
+6.18 GPS / Tracking / Geofence
+Driver/mobile GPS
+Vehicle GPS/IoT integration
+Live WebSocket updates
+Location history
+Pickup/drop geofences
+Office/depot/charging geofences
+Route deviation
+ETA recalculation
+GPS health
+Spoofing/anomaly flags
+Retention policy
+6.19 No-Show
+Vehicle arrival geofence
+Employee notification
+Wait timer
+Driver action
+Call/contact event logging if integrated
+No-show status
+Supervisor exception
+Evidence: GPS/time/wait duration
+Billing/SLA impact
+6.20 Breakdown & Replacement
+Driver/supervisor breakdown report
+Affected employee detection
+Nearest eligible replacement vehicle
+Replacement driver if needed
+Capacity/compliance validation
+Route regeneration
+Employee notification
+New assignment/OTP context
+Incident linkage
+6.21 Live Control Room
+Live map
+Running/upcoming/completed/delayed/unassigned
+SOS queue
+Breakdown queue
+Compliance blocks
+Driver/vehicle status
+Trip drill-down
+Employee pickup/drop status
+Route deviation
+Manual reassign
+Override with reason
+Exception SLA timers
+6.22 Notifications
+Push
+SMS
+Email
+WhatsApp integration where configured
+Template management
+Event subscriptions
+Trip assigned
+Vehicle approaching
+ETA change
+OTP
+Pickup/drop
+Delay/cancel
+Replacement
+SOS
+Compliance/contract expiry
+Delivery status
+6.23 Incident & Safety Case Management
+Accident
+SOS
+Breakdown
+Driver misconduct
+Employee complaint
+Route deviation
+Vehicle issue
+Safety violation
+Severity
+Assignment
+Investigation
+Corrective action
+Attachments
+Closure approval
+Audit
+6.24 Billing Engine
+Per KM/trip/vehicle/shift/employee/fixed/minimum guarantee/hybrid
+Rate-card versioning
+GPS/approved KM
+Allowances
+Taxes
+Penalties
+Adjustments
+Corporate charge
+Vendor payable
+Trip-level calculation trace
+Approval
+6.25 Invoice Reconciliation
+Vendor invoice import
+Match invoice lines to validated trips
+Compare claimed vs approved KM/rate
+Exception lines
+Dispute workflow
+Approval hierarchy
+Credit/debit adjustments
+Export to finance/ERP
+6.26 Vendor Performance / SLA
+On-time percentage
+Trip completion
+Compliance
+Safety
+Complaints
+Vehicle availability
+Driver quality
+Billing accuracy
+Penalty score
+Weighted vendor score
+Trend and corporate-specific score
+6.27 Analytics & Reporting
+Trip KPIs
+Cost/employee
+Cost/km
+Vehicle utilization
+Empty KM
+No-show/cancel
+On-time
+Safety incidents
+Compliance
+Vendor performance
+Driver performance
+EV utilization
+CO2/sustainability metrics
+Scheduled reports
+Export/API
+6.28 EV Fleet
+SOC/battery
+Estimated range
+Charging status
+Energy consumption
+Charging sessions
+Charging locations
+Charging cost
+Range-aware allocation
+Charge-time-aware scheduling
+Insufficient-range block/warning
+6.29 Maintenance
+Preventive maintenance
+KM/time service intervals
+Tyres
+Battery
+Repairs
+Workshop
+Cost
+Downtime
+Maintenance block
+Inspection checklist
+History
+6.30 Audit & Governance
+Who/what/when
+Organisation/tenant context
+Before/after values
+IP/device where appropriate
+Reason code
+Approval chain
+Immutable event history for critical operations
+Export for audit
+7. Automated Daily Operating Flow
+1. HRMS/API/CSV supplies employees, shifts, attendance/leave and roster changes.2. Roster Engine determines eligible transport demand.3. Planning Engine groups employees by shift, geography, office and constraints.4. Relationship Engine identifies authorized vendors/operators/resources.5. Compliance Engine filters non-compliant drivers/vehicles/guards/vendors.6. Allocation Engine assigns vendor + vehicle + driver + guard.7. Route Engine optimizes pickup/drop sequence and ETA.8. Safety Engine validates female/last-drop/escort/night/geofence constraints.9. Cost Engine estimates trip cost.10. Plan is generated with exceptions.11. Supervisor reviews only unresolved exceptions or configured approval items.12. Plan is published.13. Driver, employee, guard and vendor receive assignments.14. Live execution uses GPS + pickup OTP + drop OTP.15. Live optimizer reacts to cancellations, traffic, breakdowns and resource changes.16. Completed trip is validated against GPS/OTP/events.17. SLA, billing, vendor payable, analytics and audit records are generated.
+8. Planning & Optimization Requirements
+8.1 Objective Function
+The optimizer should support weighted objectives rather than one fixed formula. Initial objective terms:
+Minimize number of vehicles
+Minimize total KM
+Minimize empty/dead KM
+Minimize travel time
+Minimize employee ride time
+Minimize operating cost
+Minimize idle time
+Maximize seat utilization
+Maximize back-to-back resource utilization
+8.2 Hard Constraints
+Vehicle capacity
+Shift arrival/departure deadline
+Pickup/drop time window
+Maximum employee ride time
+Vehicle/driver/guard availability
+Corporate-vendor authorization
+Driver-vendor authorization
+Corporate resource eligibility
+Compliance status
+Driver working/rest rules
+Vehicle category requirement
+Service-area/city restrictions
+Safety/last-drop rules
+Guard requirement
+EV range/charge constraints where enabled
+No double-booking of driver/vehicle/guard
+8.3 Planning States
+DRAFT → OPTIMIZING → GENERATED → EXCEPTIONS_PENDING → APPROVED (optional) → PUBLISHED → ACTIVE → COMPLETED / SUPERSEDED
+8.4 Exceptions
+No eligible vehicle
+No eligible driver
+No guard available
+Capacity shortage
+Compliance block
+Safety rule impossible
+Route exceeds max ride time
+Vendor capacity exhausted
+Contract/rate missing
+EV range insufficient
+Conflicting driver/vehicle assignment
+9. Trip State Machine
+CREATED → SCHEDULED → RESOURCES_ASSIGNED → DRIVER_ACCEPTED → EN_ROUTE_TO_FIRST_PICKUP → ARRIVED_AT_STOP → EMPLOYEE_PICKED_UP → RUNNING → EMPLOYEE_DROPPED → COMPLETEDAlternate terminal/intermediate states:CANCELLED | NO_SHOW | BREAKDOWN | SOS_ACTIVE | PAUSED | REASSIGNING | FAILED
+Every state transition must emit a domain event and audit record. Invalid transitions must be rejected server-side.
+10. OTP & Proof-of-Service Specification
+Generate cryptographically secure short-lived OTPs; never store plaintext OTP if avoidable—store a one-way verification representation.
+Pickup and drop OTP must be distinct.
+Bind OTP to employee + trip + stop + purpose + validity window.
+Driver app submits OTP; backend validates authorization and trip state.
+Where policy requires, validate vehicle/driver assignment, time window and GPS/geofence.
+Limit attempts and rate-limit verification.
+Support controlled fallback: supervisor-authorized manual verification with reason and audit.
+OTP success creates immutable trip event with timestamp and location.
+Reassignment invalidates or regenerates OTP context as appropriate.
+Never expose another employee's OTP to drivers before the relevant stop beyond the minimum required UI.
+11. Safety & Last-Drop Rules
+Do not hard-code a single gender rule. Build a configurable policy engine because corporate and jurisdictional requirements differ.
+Rule Example
+Action
+Night trip + female employee + policy forbids female final passenger
+Optimizer must reject route where that employee becomes final passenger and find a compliant sequence.
+Escort mandatory after configured time
+Trip cannot publish without eligible guard unless authorized exception policy exists.
+Unexpected stop > threshold
+Create safety event; notify control room; escalate based on severity.
+Route deviation > threshold
+Warn driver/control room; recalculate ETA; escalate if persistent.
+GPS unavailable
+Create tracking-health event; apply configured escalation.
+Overspeed
+Create safety event with threshold and duration.
+All safety policy evaluation results should be stored with policy version, input context and outcome so a later audit can explain why a route was accepted or rejected.
+12. Multi-Organisation Driver & Vehicle Rules
+Driver is a global identity; vendor relationship determines which vendor may manage/assign the driver.
+A driver may have multiple active vendor relationships if allowed.
+A vendor must only see the driver's data needed for its relationship and assignments.
+Corporate sees driver/vehicle details only for resources eligible/assigned to that corporate.
+Global driver availability must prevent conflicting assignments across vendors where Kruze has visibility of both.
+Compliance is evaluated as global base requirements + vendor requirements + corporate requirements + trip-specific requirements.
+Vehicle follows the same global-identity and relationship model.
+Assignment history must be time-bound; never overwrite history when a relationship changes.
+13. Recommended Data Model
+Use PostgreSQL as the system of record. Every tenant-scoped operational table should carry organisation/tenant context explicitly where useful for secure filtering and indexing.
+users • user_identities • organisations • organisation_roles
+organisation_memberships • subscriptions • feature_flags • corporates
+corporate_sites • departments • cost_centres • employees
+employee_locations • shifts • rosters • roster_entries
+transport_requests • organisation_relationships • corporate_vendor_relationships • vendor_driver_relationships
+vendor_vehicle_relationships • vendor_guard_relationships • corporate_resource_eligibility • contracts
+contract_services • rate_cards • rate_card_rules • sla_definitions
+drivers • driver_documents • driver_training • driver_availability
+driver_status_history • vehicles • vehicle_documents • vehicle_inspections
+vehicle_availability • vehicle_maintenance • gps_devices • vehicle_status_history
+guards • guard_documents • guard_availability • compliance_rules
+compliance_requirements • compliance_evaluations • compliance_documents • compliance_status_history
+safety_policies • safety_rules • policy_versions • planning_runs
+planning_demands • planning_exceptions • resource_allocations • routes
+route_stops • route_versions • trips • trip_employees
+trip_assignments • trip_events • trip_otps • trip_locations
+trip_exceptions • incidents • incident_actions • notifications
+notification_deliveries • billing_rules • trip_charges • vendor_payables
+invoices • invoice_lines • reconciliation_exceptions • payments
+audit_logs • support_sessions • integration_connections • webhooks
+api_keys
+13.1 Critical Relationship Table
+organisation_relationships- id- source_organisation_id- target_organisation_id- relationship_type- status- starts_at- ends_at- created_by- metadata_json- contract_id (nullable)- permissions_profile_id- created_at / updated_at
+13.2 Driver-Vendor Relationship
+vendor_driver_relationships- id- vendor_organisation_id- driver_id- status- employment_or_contract_type- starts_at / ends_at- operating_cities- permissions / restrictions- vendor_specific_driver_code- created_at / updated_at
+13.3 Trip Core
+trips- id / kruze_trip_id- corporate_organisation_id- operating_partner_organisation_id (nullable)- vendor_organisation_id- contract_id- route_version_id- shift_id- scheduled_start_at- scheduled_end_at- actual_start_at / actual_end_at- status- safety_policy_version_id- planning_run_id- estimated_distance / actual_distance- estimated_cost / validated_cost- created_at / updated_attrip_assignments- trip_id- driver_id- vehicle_id- guard_id (nullable)- assignment_status- assignment_start/end- source (AUTO/MANUAL/REPLACEMENT)- override_reason
+14. API & Backend Architecture
+Recommended starting architecture: modular monolith with clear domain boundaries and an event-driven internal design. Extract high-throughput services later.
+API Gateway / BFF    |Auth + Tenant/Relationship Context    |------------------------------------------------------------| Tenant | Employee | Roster | Vendor | Fleet | Driver     || Guard  | Compliance | Policy | Planning | Routing | Trip || Safety | Tracking | Billing | Invoice | Analytics | Audit|------------------------------------------------------------    |Domain Events / Message Bus    |Notifications | Tracking processors | Analytics | Integrations
+14.1 Suggested Backend Modules
+/auth/identity/tenant/organisation/relationship/corporate/employee/hrms/shift/roster/vendor/fleet/driver/guard/contract/compliance/policy/planning/routing/allocation/trip/otp/tracking/safety/incident/notification/billing/invoice/sla/analytics/integration/subscription/audit
+14.2 API Conventions
+REST for core CRUD/commands initially; version APIs (/v1).
+Use opaque UUID/ULID internal identifiers; human-readable Kruze IDs are display/reference IDs, not authorization boundaries.
+All requests derive authenticated user, active organisation context and allowed relationship scope server-side.
+Use idempotency keys for booking, trip generation, assignment, billing and external webhook commands.
+Use optimistic concurrency/version columns for rosters, routes, policies, contracts and trip mutations.
+Return machine-readable error codes (e.g., COMPLIANCE_BLOCKED, RELATIONSHIP_NOT_AUTHORIZED, DRIVER_CONFLICT).
+Publish domain events after committed state changes using an outbox pattern.
+Webhooks should be signed, replay-protected and retryable.
+15. GPS / Real-Time Architecture
+Vehicle GPS / Driver App       ↓Ingestion Gateway (HTTP/MQTT/provider adapters)       ↓Validation + Device/Trip Resolution       ↓Event Stream       ↓Tracking Processor       ├─ current location cache       ├─ trip location history       ├─ geofence events       ├─ route deviation       ├─ ETA updates       └─ safety events       ↓WebSocket / SSE       ↓Control Room + Employee App
+Do not run high-frequency location ingestion through ordinary business CRUD endpoints. Apply retention/downsampling policies to control cost and privacy exposure.
+16. Frontend / Mobile Requirements
+16.1 Corporate Web
+Dashboard
+Employees
+Sites/shifts/rosters
+Transport requests
+Vendors/operators
+Contracts/rate cards
+Trips/live tracking
+Safety
+Compliance
+SLA
+Billing/invoices
+Reports
+Users/roles/settings
+16.2 Operator/Vendor Web
+Corporate customers
+Drivers
+Vehicles
+Guards
+Availability
+Compliance
+Dispatch
+Trips
+Live control room
+Maintenance
+Incidents
+Rate cards/billing
+Performance
+Users/roles
+16.3 Employee App
+SSO/OTP login as configured
+Home/upcoming trip
+Book/cancel/change
+Live ETA/map
+Vehicle/driver details
+Pickup OTP
+Drop OTP
+SOS
+Emergency contact
+Notifications
+Trip history
+Feedback/complaints
+16.4 Driver App
+Login/device registration
+Today's assignments across authorized vendors/corporates
+Availability
+Vehicle association/inspection
+Navigation
+Stop/employee manifest
+Arrived
+Pickup OTP verification
+No-show
+Drop OTP verification
+SOS
+Breakdown
+Incident
+Trip completion
+Document/compliance alerts
+16.5 Guard App
+Duty list
+Accept/start/end
+Vehicle/trip details
+Presence confirmation
+Live route
+SOS
+Incident
+Safety checklist
+17. Security Requirements
+Target enterprise-grade security and independently verified penetration testing; do not market the system as 'foolproof'.
+OWASP ASVS-aligned secure SDLC and application controls.
+MFA for privileged users; SSO/SAML/OIDC for enterprise.
+TLS in transit and strong encryption at rest.
+Managed KMS/secrets vault; no secrets in code or client apps.
+Strict server-side tenant/relationship authorization on every object.
+PII minimization and field-level masking in vendor/driver views.
+Signed/short-lived file access URLs; malware scanning for uploads.
+Rate limiting, WAF, bot/abuse controls and DDoS protection.
+Secure session/token rotation and revocation.
+Centralized security logs and alerting/SIEM integration.
+Encrypted backups, tested restore, DR/BCP.
+Dependency/SAST/DAST/container/IaC scanning in CI/CD.
+Independent web/API/mobile penetration testing before enterprise GA and after major security-sensitive releases.
+Audit sensitive exports and bulk downloads.
+Data retention/deletion/consent workflows aligned to applicable privacy obligations and customer contracts.
+17.1 Mandatory Pentest Scenarios
+Corporate A attempts to access Corporate B employee/trip.
+Vendor A attempts to access Vendor B fleet/driver.
+Fleet Operator attempts to access a corporate it does not manage.
+Driver attempts to access another driver's trip.
+Corporate attempts to edit vendor-owned driver master data without permission.
+IDOR/BOLA across every object ID.
+Privilege escalation between employee/driver/supervisor/admin roles.
+OTP brute force/replay/cross-trip reuse.
+GPS spoofing/tampering scenarios.
+File upload abuse, injection, SSRF, broken authentication, JWT/session flaws, mass assignment and race conditions.
+Support impersonation abuse and audit bypass.
+18. Privacy & Data Segmentation
+Corporate owns its employee transport data context.
+Vendor/operator owns/manages its resource master data subject to contractual/platform terms.
+Trip records are shared only with parties participating in that trip and permitted roles.
+Employee phone/home location should be exposed to driver/vendor only to the minimum extent required for trip execution and according to policy.
+Location data retention must be configurable and documented.
+Closed vendor relationships must remove future access while preserving legally/contractually required historical audit records.
+Data export and deletion must be scoped to tenant and relationship rights.
+19. Integrations
+HRMS: Workday, SAP, Oracle, Darwinbox, Keka, Zoho People and custom APIs.
+Maps: provider abstraction for geocoding, reverse geocoding, routing, matrix, ETA and navigation.
+GPS/IoT: adapter architecture for multiple device providers.
+Notifications: push, SMS, email, WhatsApp provider integration.
+SSO/Identity providers.
+ERP/Finance for approved invoice/payable export.
+BI/data warehouse export.
+Webhooks and public APIs for customers.
+20. Recommended Technology Stack
+Layer
+Recommendation
+Web
+React + Next.js + TypeScript
+Mobile
+Flutter; evaluate native Android components for robust background location
+Backend
+NestJS + TypeScript initially; Java/Spring is also viable for enterprise teams
+Primary DB
+PostgreSQL
+Cache / locks
+Redis
+Event streaming
+Kafka or managed equivalent
+Search/log search
+OpenSearch
+Object storage
+S3-compatible
+Realtime
+WebSocket/SSE
+Infrastructure
+AWS or Azure with IaC
+Observability
+Central logs, metrics, tracing, alerting
+Optimization
+Dedicated optimization service; start with deterministic solver/heuristics, add ML only where evidence supports it
+21. Key Non-Functional Requirements
+Area
+Initial Target / Requirement
+Availability
+Design for multi-AZ production; define customer SLA by plan.
+Scalability
+Stateless APIs horizontally scalable; tracking/notification workers independently scalable.
+Auditability
+All critical mutations and overrides auditable.
+Latency
+Normal CRUD p95 target <500ms excluding external providers; realtime updates optimized separately.
+Planning
+Planning runs asynchronous with progress/status and deterministic reproducibility where possible.
+Resilience
+Retry/idempotency for external providers and event consumers.
+DR
+Document RPO/RTO and test restoration.
+Observability
+Correlation IDs across API, events, trips and integrations.
+Localization
+Timezone, locale, currency and city-aware configuration.
+Accessibility
+Web/mobile accessibility baseline and keyboard/screen-reader consideration.
+22. Role Matrix — Baseline
+Role
+Core Access
+Kruze Super Admin
+Platform configuration, tenant activation, subscriptions, security/support.
+Tenant/Organisation Admin
+Organisation users, settings and permitted modules.
+Corporate Transport Admin
+Employees, shifts, roster, vendors, policies, planning, trips.
+Corporate HR
+Employee/shift/roster data; limited transport operations.
+Corporate Finance
+Billing, invoices, reconciliation, reports.
+Corporate Safety/Compliance
+Safety policies, incidents, compliance views/approvals.
+Fleet Operator Admin
+Managed corporates, drivers, vehicles, guards, operations, billing.
+Vendor Admin
+Own resources, assigned corporates/trips, compliance, billing.
+Supervisor/Dispatcher
+Live trips, exceptions, assignments and authorized overrides.
+Driver
+Own profile/availability and assigned trip execution.
+Guard
+Own duties and assigned trip safety.
+Employee
+Own bookings/trips/OTP/tracking/SOS/feedback.
+Auditor
+Read-only scoped reports/audit/compliance.
+23. Critical Workflows
+23.1 Fleet Operator Onboards Corporate
+Fleet Operator → Add Corporate→ enter corporate profile + authorised contact→ invitation / verification→ Kruze approval if required by plan→ Corporate organisation/tenant activated→ Fleet Operator ↔ Corporate Operating Partner relationship created→ Corporate admin accepts access→ Corporate configures employees/sites/shifts/policies→ Operator manages drivers/fleet/operations
+23.2 Corporate Adds Vendor
+Corporate Admin → Vendors → Invite / Connect Existing Kruze Vendor→ vendor accepts→ corporate-vendor relationship + contract/service scope created→ corporate compliance requirements applied→ vendor exposes eligible drivers/vehicles/guards→ corporate approves resources if policy requires→ optimizer may allocate those resources
+23.3 Driver Works with Multiple Vendors
+Global Driver Rahul→ Vendor A relationship ACTIVE→ Vendor B relationship ACTIVE→ global availability/conflict engine→ Corporate eligibility evaluated per relationship→ Driver app shows all of Rahul's authorized assignments→ Vendor A sees only Vendor A context→ Vendor B sees only Vendor B context
+23.4 Automated Plan
+Roster cutoff reached→ demand snapshot→ eligible vendor/resource pool→ compliance filtering→ route grouping/optimization→ resource allocation→ safety validation→ guard assignment→ cost estimate→ exceptions→ publish
+23.5 Live Re-optimization
+Cancellation / traffic / breakdown / driver unavailable / new booking→ identify affected trips→ lock current execution-safe state→ calculate feasible alternatives→ safety + compliance validation→ apply automatically if policy allows OR raise approval exception→ regenerate ETA/assignment/OTP context→ notify affected parties→ audit
+24. Billing & Commercial Model
+The billing engine must distinguish SaaS billing (Kruze subscription) from transport commercial billing (Corporate ↔ Vendor/Fleet Operator).
+Kruze SaaS: plan, active employees, vehicles, trips, modules, API/SSO/enterprise features or negotiated enterprise contract.
+Transport billing: per KM, per trip, per vehicle, per shift, per employee, fixed monthly, minimum guarantee, hybrid.
+Rate cards must be versioned by effective dates.
+Validated GPS/approved distance and trip completion evidence feed reconciliation.
+Support corporate charge, vendor payable, penalty, allowance, tax and adjustment as separate ledger components.
+Never overwrite recalculated historical commercial results without version/audit.
+25. Dashboards
+25.1 Corporate
+Employees needing transport
+Trips planned/running/completed
+Unassigned demand
+Cost and cost/employee
+Vendor SLA
+Vehicle utilization
+No-show/cancellation
+Safety
+Compliance
+Invoices
+25.2 Operator/Vendor
+Managed corporates
+Fleet/driver availability
+Today's trips
+Utilization
+Empty KM
+Compliance expiry
+Breakdowns
+Revenue/payable
+Corporate SLA
+25.3 Control Room
+Live map
+SOS
+Delayed
+Unassigned
+Breakdown
+Route deviation
+GPS offline
+No-show
+Guard missing
+Compliance block
+25.4 Kruze
+Active organisations/subscriptions
+Usage
+System health
+Integration failures
+Security/audit alerts
+Support tickets/context
+Aggregated operational metrics only as permitted
+26. MVP and Phased Delivery
+Phase
+Scope
+Phase 0 — Architecture
+Domain model, tenancy/relationships, RBAC/ReBAC/ABAC, threat model, DB schema, API conventions, CI/CD.
+Phase 1 — Foundation
+Kruze admin, organisation onboarding, corporate/operator/vendor, users/roles, employees, drivers, vehicles, guards, documents, basic compliance.
+Phase 2 — Transport Core
+Sites, shifts, roster, booking, trip model, basic route planning, auto assignment, employee/driver apps, GPS, pickup/drop OTP, notifications.
+Phase 3 — Automation & Safety
+Optimization, policy engine, female/last-drop rules, guard automation, dynamic re-routing, no-show, breakdown/replacement, control room.
+Phase 4 — Enterprise Commercial
+Contracts, rate cards, SLA, billing, invoice reconciliation, advanced compliance, HRMS, SSO, audit/reporting.
+Phase 5 — Scale & Intelligence
+Advanced solver, demand forecasting, EV optimization, predictive maintenance, automated vendor allocation, AI control-room assistant.
+27. MVP Acceptance Criteria
+A Fleet Operator can create/request a corporate tenant and receive authorized operating-partner access.
+A Corporate can connect multiple vendors.
+A Vendor can manage multiple corporates without seeing unrelated corporate data.
+A Driver can have multiple vendor relationships but only one Kruze driver identity.
+A Driver App can display assignments across authorized vendor/corporate contexts without leaking other data.
+A Corporate can create/sync employees, shifts and roster.
+System can generate transport demand and automatically group/assign feasible resources.
+Non-compliant driver/vehicle cannot be auto-assigned.
+Configured last-drop/guard safety rules are enforced by route validation.
+Employee can see trip and pickup/drop OTP; driver can verify OTP.
+Control room can track live trips and handle exceptions.
+Breakdown can trigger controlled replacement workflow.
+Trip completion creates auditable GPS/OTP/event evidence.
+Billing can calculate a traceable trip charge from a versioned rate card.
+Cross-tenant/cross-vendor authorization tests fail as expected.
+28. Coding Standards / Engineering Guardrails
+Domain-driven module boundaries; avoid direct cross-module DB writes.
+Use database transactions for critical state changes.
+Outbox pattern for reliable domain events.
+Idempotent commands for external/retry-prone operations.
+Soft delete only where appropriate; use explicit lifecycle status and history for auditable business records.
+UTC timestamps in storage; render in organisation/local timezone.
+Never authorize based on client-supplied tenant/vendor/corporate IDs alone.
+Schema migrations are mandatory and version-controlled.
+Automated unit, integration, authorization and end-to-end tests.
+Feature flags for risky/new enterprise modules.
+Structured logs with correlation IDs; never log OTPs, tokens or unnecessary PII.
+Secrets only from managed secret stores.
+API contracts documented via OpenAPI.
+Background jobs must be retryable, observable and dead-lettered after configured failures.
+29. Suggested Repository Structure
+apps/  web-admin/  web-corporate/  web-operator/  mobile-employee/  mobile-driver/  mobile-guard/services/  api/  tracking-ingestion/  optimization/  notification-worker/packages/  domain/  authz/  ui/  api-contracts/  events/  observability/  config/infra/  terraform-or-equivalent/  ci-cd/  monitoring/
+30. First Engineering Sprint — What Claude/Engineering Should Build
+Create monorepo, CI, environments and coding conventions.
+Implement PostgreSQL schema for organisations, users, memberships and organisation relationships.
+Implement authentication and active organisation context.
+Implement authorization middleware/policy layer for RBAC + relationship scope.
+Implement Kruze Admin organisation onboarding and approval.
+Implement Corporate and Fleet Operator/Vendor organisation dashboards.
+Implement corporate-vendor and fleet-operator-corporate relationship invitation/acceptance flows.
+Implement global Driver and Vehicle identities plus vendor relationship tables.
+Implement audit logging for all organisation/resource relationship changes.
+Add automated authorization tests proving isolation between two corporates and two vendors.
+Only after this foundation is stable, build employee/shift/roster and transport planning.
+31. Decisions That Must Be Configurable, Not Hard-Coded
+Whether Kruze approval is required when operator/vendor onboards a corporate.
+Whether corporate may add additional vendors when an Operating Partner exists.
+Who can approve vendor/resource onboarding.
+Roster cut-off and booking/cancellation windows.
+Maximum ride time and pickup windows.
+Female/last-drop and guard/escort policies.
+Compliance requirements and grace periods.
+Automatic vs supervisor-approved re-optimization.
+Rate cards, SLA and penalty formulas.
+Location/GPS retention period.
+Corporate/vendor visibility fields.
+Support access/impersonation policy.
+32. Out of Scope for Initial Product
+Full HR/payroll replacement.
+General accounting ERP.
+Custom map engine from scratch.
+Custom GPS hardware manufacturing.
+Unbounded AI decision-making without deterministic policy/constraint enforcement.
+Dozens of microservices before product/scale requires them.
+33. Definition of Done for Enterprise GA
+All core flows pass automated E2E tests.
+Tenant/relationship authorization has dedicated security tests.
+Independent web/API/mobile VAPT completed and critical/high findings remediated.
+Backup restore and DR exercise completed.
+Monitoring/alerting/runbooks operational.
+Privacy/data retention/export/deletion workflows documented and tested.
+SSO/MFA/audit available for enterprise.
+Performance/load testing completed for expected tenant/trip/GPS volume.
+Incident response and support access processes documented.
+Architecture, data flow, API and security documentation maintained.
+34. Final Product Statement
+Kruze is an Enterprise Employee Mobility & Fleet Operating System. It provides one SaaS technology layer for Corporates, Fleet Operators, Vendors, Drivers, Vehicles, Guards and Employees. A Fleet Operator or Vendor can use Kruze as its own technology solution and onboard corporate customers; a Corporate can use Kruze directly and onboard multiple vendors. Vendors/operators manage their drivers and fleet, while corporates manage employees, transport demand, policies, SLA and oversight. Global identities and relationship-based permissions allow the same driver, vehicle or vendor to participate in multiple authorized corporate ecosystems without duplicate accounts or data leakage.
+The product's operating principle is: if the system has enough authorized information to make a safe, compliant decision according to policy, it should make that decision automatically. Supervisors manage exceptions.

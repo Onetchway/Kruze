@@ -1,0 +1,381 @@
+// Kruze foundation schema (Phase 0/1).
+// Scope: identity, organisation, relationship, authorization support,
+// global driver/vehicle/guard identity, audit. Operational modules
+// (roster, trips, planning, billing, ...) are added in later phases.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String?    @unique
+  phone        String?    @unique
+  passwordHash String?
+  displayName  String
+  mfaEnabled   Boolean    @default(false)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  memberships       OrganisationMembership[]
+  auditLogsAsActor  AuditLog[]
+  relationshipsInvited OrganisationRelationship[] @relation("RelationshipCreatedBy")
+  relationshipsApproved OrganisationRelationship[] @relation("RelationshipApprovedBy")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Organisation
+// ---------------------------------------------------------------------------
+
+enum OrganisationRole {
+  KRUZE_PLATFORM
+  CORPORATE
+  FLEET_OPERATOR
+  VENDOR
+  SUB_VENDOR
+}
+
+enum OrganisationStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+model Organisation {
+  id           String             @id @default(uuid())
+  /// Human-readable Kruze ID (e.g. KZ-COR-000001). Display/reference only —
+  /// never used as an authorization boundary; `id` (UUID) is authoritative.
+  globalOrgId  String             @unique
+  legalName    String
+  displayName  String
+  /// An organisation may carry more than one role (e.g. operator + vendor).
+  roles        OrganisationRole[]
+  status       OrganisationStatus @default(PENDING_APPROVAL)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  memberships           OrganisationMembership[]
+  corporateProfile       Corporate?
+  vendorProfile          VendorProfile?
+
+  relationshipsAsSource  OrganisationRelationship[] @relation("RelationshipSource")
+  relationshipsAsTarget  OrganisationRelationship[] @relation("RelationshipTarget")
+
+  driverVendorRelationships DriverVendorRelationship[]
+  vehicleVendorRelationships VehicleVendorRelationship[]
+  guardVendorRelationships   GuardVendorRelationship[]
+  corporateResourceEligibilities CorporateResourceEligibility[] @relation("EligibilityCorporate")
+
+  auditLogs AuditLog[]
+
+  @@map("organisations")
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+/// Platform role catalogue, granted per membership — never globally.
+enum PlatformRole {
+  KRUZE_SUPER_ADMIN
+  TENANT_ADMIN
+  CORPORATE_TRANSPORT_ADMIN
+  CORPORATE_HR
+  CORPORATE_FINANCE
+  CORPORATE_SAFETY_COMPLIANCE
+  FLEET_OPERATOR_ADMIN
+  VENDOR_ADMIN
+  SUPERVISOR_DISPATCHER
+  DRIVER
+  GUARD
+  EMPLOYEE
+  AUDITOR
+}
+
+model OrganisationMembership {
+  id             String            @id @default(uuid())
+  userId         String
+  organisationId String
+  role           PlatformRole
+  status         MembershipStatus  @default(ACTIVE)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+
+  @@unique([userId, organisationId, role])
+  @@index([organisationId])
+  @@map("organisation_memberships")
+}
+
+// ---------------------------------------------------------------------------
+// Organisation relationships (the connective tissue — never a rigid tree)
+// ---------------------------------------------------------------------------
+
+enum OrganisationRelationshipType {
+  KRUZE_TENANCY
+  OPERATOR_MANAGES_CORPORATE
+  CORPORATE_VENDOR
+  VENDOR_SUB_VENDOR
+}
+
+enum OrganisationRelationshipStatus {
+  INVITED
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  REJECTED
+}
+
+model OrganisationRelationship {
+  id               String                         @id @default(uuid())
+  sourceOrgId      String
+  targetOrgId      String
+  type             OrganisationRelationshipType
+  status           OrganisationRelationshipStatus @default(INVITED)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  createdByUserId  String
+  approvedByUserId String?
+  /// Free-form contextual metadata (service scope, cities, notes, ...).
+  metadata         Json?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
+
+  sourceOrg Organisation @relation("RelationshipSource", fields: [sourceOrgId], references: [id])
+  targetOrg Organisation @relation("RelationshipTarget", fields: [targetOrgId], references: [id])
+  createdBy User         @relation("RelationshipCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy User?       @relation("RelationshipApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([sourceOrgId, status])
+  @@index([targetOrgId, status])
+  @@map("organisation_relationships")
+}
+
+// ---------------------------------------------------------------------------
+// Corporate / Vendor profiles
+// ---------------------------------------------------------------------------
+
+model Corporate {
+  organisationId String   @id
+  config         Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+
+  @@map("corporates")
+}
+
+model VendorProfile {
+  organisationId String   @id
+  /// Operator/vendor attributes: service areas, vehicle categories, etc.
+  attributes     Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+
+  @@map("vendor_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Global driver / vehicle / guard identity + vendor relationships
+//
+// Each entity has exactly one global identity. Vendor-specific status,
+// availability and compliance belong on the relationship record, never on
+// the identity itself, so one driver can hold multiple concurrent vendor
+// relationships without duplicate Kruze identities.
+// ---------------------------------------------------------------------------
+
+enum ResourceRelationshipStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+model Driver {
+  id             String   @id @default(uuid())
+  globalDriverId String   @unique
+  fullName       String
+  phone          String   @unique
+  licenceNumber  String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  vendorRelationships DriverVendorRelationship[]
+
+  @@map("drivers")
+}
+
+model DriverVendorRelationship {
+  id                 String                      @id @default(uuid())
+  driverId           String
+  vendorOrgId        String
+  status             ResourceRelationshipStatus  @default(PENDING)
+  employmentType     String?
+  operatingCities    String[]                    @default([])
+  startsAt           DateTime?
+  endsAt             DateTime?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  driver    Driver       @relation(fields: [driverId], references: [id])
+  vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
+
+  @@unique([driverId, vendorOrgId])
+  @@index([vendorOrgId, status])
+  @@map("driver_vendor_relationships")
+}
+
+model Vehicle {
+  id              String   @id @default(uuid())
+  globalVehicleId String   @unique
+  registrationNo  String   @unique
+  make            String?
+  model           String?
+  vehicleType     String?
+  capacity        Int?
+  fuelType        String?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  vendorRelationships VehicleVendorRelationship[]
+
+  @@map("vehicles")
+}
+
+model VehicleVendorRelationship {
+  id              String                     @id @default(uuid())
+  vehicleId       String
+  vendorOrgId     String
+  status          ResourceRelationshipStatus @default(PENDING)
+  ownershipType   String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  vehicle   Vehicle      @relation(fields: [vehicleId], references: [id])
+  vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
+
+  @@unique([vehicleId, vendorOrgId])
+  @@index([vendorOrgId, status])
+  @@map("vehicle_vendor_relationships")
+}
+
+model Guard {
+  id            String   @id @default(uuid())
+  globalGuardId String   @unique
+  fullName      String
+  phone         String   @unique
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vendorRelationships GuardVendorRelationship[]
+
+  @@map("guards")
+}
+
+model GuardVendorRelationship {
+  id          String                     @id @default(uuid())
+  guardId     String
+  vendorOrgId String
+  status      ResourceRelationshipStatus @default(PENDING)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  guard     Guard        @relation(fields: [guardId], references: [id])
+  vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
+
+  @@unique([guardId, vendorOrgId])
+  @@index([vendorOrgId, status])
+  @@map("guard_vendor_relationships")
+}
+
+enum ResourceType {
+  DRIVER
+  VEHICLE
+  GUARD
+}
+
+/// A resource (driver/vehicle/guard) becomes visible/assignable to a
+/// corporate only via an explicit eligibility record, normally derived
+/// from a corporate-vendor OrganisationRelationship — never implicitly
+/// through the vendor relationship alone.
+model CorporateResourceEligibility {
+  id                          String                     @id @default(uuid())
+  corporateOrgId              String
+  vendorOrgId                 String
+  resourceType                ResourceType
+  resourceId                  String
+  organisationRelationshipId  String?
+  status                      ResourceRelationshipStatus @default(PENDING)
+  startsAt                    DateTime?
+  endsAt                      DateTime?
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+
+  corporateOrg Organisation @relation("EligibilityCorporate", fields: [corporateOrgId], references: [id])
+
+  @@unique([corporateOrgId, resourceType, resourceId])
+  @@index([vendorOrgId])
+  @@map("corporate_resource_eligibilities")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  actorUserId    String?
+  organisationId String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  beforeValue    Json?
+  afterValue     Json?
+  reason         String?
+  correlationId  String?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  actor        User?         @relation(fields: [actorUserId], references: [id])
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+
+  @@index([organisationId, createdAt])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}

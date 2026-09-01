@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.local
+*.log
+.DS_Store
+.turbo/
+apps/*/node_modules/
+packages/*/node_modules/
+apps/api/generated/
