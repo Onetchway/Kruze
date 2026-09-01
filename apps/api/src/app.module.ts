@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_INTERCEPTOR } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuditInterceptor } from "./audit/audit.interceptor";
@@ -37,6 +38,14 @@ import { DriverPaymentModule } from "./driver-payment/driver-payment.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Global baseline rate limit (defense in depth); sensitive auth/OTP
+    // endpoints layer a much stricter @Throttle(...) on top of this.
+    // Skipped under Jest (e2e suites legitimately log in far more than
+    // 5x/minute across specs) — never skipped outside a test process.
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: "default", ttl: 60_000, limit: 100 }],
+      skipIf: () => process.env.JEST_WORKER_ID !== undefined,
+    }),
     PrismaModule,
     AuditModule,
     IdentityModule,
@@ -73,6 +82,10 @@ import { DriverPaymentModule } from "./driver-payment/driver-payment.module";
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

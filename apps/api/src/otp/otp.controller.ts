@@ -1,4 +1,5 @@
 import { Body, Controller, Param, Post, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { OtpService } from "./otp.service";
 import { GenerateOtpDto } from "./dto/generate-otp.dto";
 import { VerifyOtpDto } from "./dto/verify-otp.dto";
@@ -21,6 +22,8 @@ export class OtpController {
 
   @Post("otp-challenges/:id/verify")
   @Audited({ action: "OTP_VERIFIED", resourceType: "OtpChallenge" })
+  // Network-level backstop on top of the per-challenge attempt lock in OtpService — 20/minute per IP.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   verify(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: VerifyOtpDto) {
     const location = dto.latitude !== undefined && dto.longitude !== undefined
       ? { latitude: dto.latitude, longitude: dto.longitude }

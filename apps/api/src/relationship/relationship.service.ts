@@ -18,9 +18,18 @@ export class RelationshipService {
       throw new BadRequestException("An organisation cannot form a relationship with itself");
     }
 
-    const target = await this.prisma.organisation.findUnique({ where: { id: input.targetOrgId } });
+    const [source, target] = await Promise.all([
+      this.prisma.organisation.findUnique({ where: { id: actor.organisationId } }),
+      this.prisma.organisation.findUnique({ where: { id: input.targetOrgId } }),
+    ]);
     if (!target) {
       throw new NotFoundException("Target organisation not found");
+    }
+    if (source?.status !== "ACTIVE") {
+      throw new BadRequestException("Your organisation must be approved and active before it can form relationships");
+    }
+    if (target.status !== "ACTIVE") {
+      throw new BadRequestException("The target organisation is not active");
     }
 
     return this.prisma.organisationRelationship.create({
@@ -42,6 +51,17 @@ export class RelationshipService {
     }
     if (relationship.status !== OrganisationRelationshipStatus.INVITED) {
       throw new BadRequestException(`Relationship is not in an acceptable state (${relationship.status})`);
+    }
+
+    const [source, target] = await Promise.all([
+      this.prisma.organisation.findUnique({ where: { id: relationship.sourceOrgId } }),
+      this.prisma.organisation.findUnique({ where: { id: relationship.targetOrgId } }),
+    ]);
+    if (target?.status !== "ACTIVE") {
+      throw new BadRequestException("Your organisation must be approved and active before it can accept relationships");
+    }
+    if (source?.status !== "ACTIVE") {
+      throw new BadRequestException("The inviting organisation is not active");
     }
 
     return this.prisma.organisationRelationship.update({

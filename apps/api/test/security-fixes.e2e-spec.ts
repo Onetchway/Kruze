@@ -382,6 +382,71 @@ describe("Security fixes: cross-tenant access is blocked", () => {
     expect(docsBlocked.status).toBe(403);
   });
 
+  it("Auth: only CORPORATE self-registration auto-approves; VENDOR stays PENDING_APPROVAL and cannot form relationships until approved", async () => {
+    const corporate = await seedOrganisationWithUser(prisma, { role: OrganisationRole.CORPORATE, membershipRole: "CORPORATE_TRANSPORT_ADMIN" });
+    const corporateToken = await login(corporate.email, corporate.password);
+
+    const corpRegRes = await request(app.getHttpServer())
+      .post("/v1/auth/register")
+      .send({
+        email: `corp-${Date.now()}@example.com`,
+        password: "Password123!",
+        displayName: "Corp Admin",
+        organisationLegalName: "Auto Approve Corp",
+        organisationDisplayName: "Auto Approve Corp",
+        organisationRole: "CORPORATE",
+      });
+    expect(corpRegRes.status).toBe(201);
+    const corpOrg = await prisma.organisation.findUnique({ where: { id: corpRegRes.body.organisationId } });
+    expect(corpOrg?.status).toBe("ACTIVE");
+
+    const vendorRegRes = await request(app.getHttpServer())
+      .post("/v1/auth/register")
+      .send({
+        email: `vendor-${Date.now()}@example.com`,
+        password: "Password123!",
+        displayName: "Vendor Admin",
+        organisationLegalName: "Unvetted Vendor",
+        organisationDisplayName: "Unvetted Vendor",
+        organisationRole: "VENDOR",
+      });
+    expect(vendorRegRes.status).toBe(201);
+    const vendorOrgId = vendorRegRes.body.organisationId;
+    const vendorOrg = await prisma.organisation.findUnique({ where: { id: vendorOrgId } });
+    expect(vendorOrg?.status).toBe("PENDING_APPROVAL");
+
+    // The pending vendor can still log in...
+    expect(vendorRegRes.body.accessToken).toBeTruthy();
+
+    // ...but cannot form a relationship with a real (active) corporate yet.
+    const vendorToken = vendorRegRes.body.accessToken as string;
+    const inviteBlocked = await request(app.getHttpServer())
+      .post("/v1/organisation-relationships")
+      .set("Authorization", `Bearer ${vendorToken}`)
+      .send({ targetOrgId: corporate.organisation.id, type: "CORPORATE_VENDOR" });
+    expect(inviteBlocked.status).toBe(400);
+
+    // Nor can the active corporate invite the still-pending vendor.
+    const inviteFromCorpBlocked = await request(app.getHttpServer())
+      .post("/v1/organisation-relationships")
+      .set("Authorization", `Bearer ${corporateToken}`)
+      .send({ targetOrgId: vendorOrgId, type: "CORPORATE_VENDOR" });
+    expect(inviteFromCorpBlocked.status).toBe(400);
+
+    // Once Kruze approves the vendor, relationship formation works normally.
+    await prisma.organisation.update({ where: { id: vendorOrgId }, data: { status: "ACTIVE" } });
+    const inviteAllowed = await request(app.getHttpServer())
+      .post("/v1/organisation-relationships")
+      .set("Authorization", `Bearer ${corporateToken}`)
+      .send({ targetOrgId: vendorOrgId, type: "CORPORATE_VENDOR" });
+    expect(inviteAllowed.status).toBe(201);
+
+    const acceptAllowed = await request(app.getHttpServer())
+      .post(`/v1/organisation-relationships/${inviteAllowed.body.id}/accept`)
+      .set("Authorization", `Bearer ${vendorToken}`);
+    expect(acceptAllowed.status).toBe(201);
+  });
+
   it("Auth: /auth/register 400s on JWT_ACCESS_SECRET-independent platform self-signup, and issues distinct tokens per org", async () => {
     // Sanity check that server actually started with a real secret (getOrThrow didn't silently fall back).
     const res = await request(app.getHttpServer())

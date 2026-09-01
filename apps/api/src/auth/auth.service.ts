@@ -25,11 +25,19 @@ export class AuthService {
   ) {}
 
   /**
-   * Self-service signup: creates the user, an ACTIVE organisation (a
-   * corporate subscribing directly to Kruze does not need operator
-   * mediation — spec §1), and an admin membership, then returns a session
-   * exactly like login. Kruze-platform-role signup is not exposed here;
-   * that account is provisioned out of band.
+   * Self-service signup: creates the user, an organisation, and an admin
+   * membership, then returns a session exactly like login.
+   * Kruze-platform-role signup is not exposed here; that account is
+   * provisioned out of band.
+   *
+   * Only a CORPORATE self-signup is auto-approved to ACTIVE — a corporate
+   * subscribing directly to Kruze does not need operator mediation (spec
+   * §1). VENDOR/FLEET_OPERATOR/SUB_VENDOR self-signup stays
+   * PENDING_APPROVAL: without platform vetting, an unapproved "vendor"
+   * could otherwise immediately form relationships/contracts and operate
+   * in the marketplace. The account can still log in (to see its pending
+   * status) but relationship invite/accept requires an ACTIVE org on both
+   * sides — see relationship.service.ts.
    */
   async register(input: {
     email: string;
@@ -58,7 +66,9 @@ export class AuthService {
       displayName: input.organisationDisplayName,
       roles: [input.organisationRole],
     });
-    await this.organisations.approve(organisation.id);
+    if (input.organisationRole === OrganisationRole.CORPORATE) {
+      await this.organisations.approve(organisation.id);
+    }
 
     const membership = await this.prisma.organisationMembership.create({
       data: {
