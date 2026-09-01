@@ -8,6 +8,7 @@ import { SafetyService } from "../safety/safety.service";
 import { TripService } from "../trip/trip.service";
 import { NotificationService } from "../notification/notification.service";
 import { MaintenanceService } from "../maintenance/maintenance.service";
+import { clusterByProximity, orderRouteByDistance } from "./geo-routing";
 import { ExceptionType } from "../../generated/prisma";
 
 const DEFAULT_GROUP_SIZE = 6;
@@ -15,17 +16,23 @@ const DEFAULT_GROUP_SIZE = 6;
 interface EligibleDemandEmployee {
   employeeId: string;
   gender?: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 /**
  * The automation-first daily loop (spec §8/§9): demand -> grouping ->
  * eligible-vendor/resource filtering -> compliance -> safety hard
  * constraints -> auto allocation -> exceptions -> plan. This is a
- * deterministic heuristic (fixed-size grouping + first-eligible-candidate
- * selection), not a real vehicle-routing solver — the spec explicitly
- * allows starting with a simpler solver/heuristic and upgrading later
- * (§17: "initially OR-Tools-based solver ... or routing provider
- * matrices").
+ * deterministic heuristic, not an exact vehicle-routing solver — the spec
+ * explicitly allows starting with a simpler solver/heuristic and
+ * upgrading later (§17: "initially OR-Tools-based solver ... or routing
+ * provider matrices"). It IS geography-aware, though: grouping clusters
+ * employees by home-location proximity (nearest-neighbor clustering) and
+ * each group's stop order is a nearest-neighbor + 2-opt route (see
+ * geo-routing.ts) rather than arbitrary roster order — both degrade to
+ * the old behavior (fixed-size chunking / roster order) if a corporate
+ * hasn't captured employee home coordinates.
  */
 @Injectable()
 export class PlanningService {
@@ -65,8 +72,13 @@ export class PlanningService {
     const demand = await this.roster.listDemand(input.shiftId, input.planDate);
     const vendorOrgIds = await this.eligibleVendorOrgIds(actor.organisationId);
 
-    const groups = chunk(
-      demand.map((d) => ({ employeeId: d.employeeId, gender: d.employee.gender })),
+    const groups = clusterByProximity(
+      demand.map((d) => ({
+        employeeId: d.employeeId,
+        gender: d.employee.gender,
+        latitude: d.employee.homeLatitude,
+        longitude: d.employee.homeLongitude,
+      })),
       DEFAULT_GROUP_SIZE,
     );
 
@@ -161,6 +173,10 @@ export class PlanningService {
     vendorOrgIds: string[],
   ): Promise<{ tripId?: string }> {
     const scheduledStartAt = shiftStartAt(new Date(planDate), shift.startTime);
+    // Route the group's stops by distance so "last passenger" (used by the
+    // LAST_DROP_RESTRICTION safety rule below) reflects an actual pickup
+    // order, not arbitrary roster order.
+    group = orderRouteByDistance(group);
 
     for (const vendorOrgId of vendorOrgIds) {
       const vehicle = await this.findEligibleVehicle(vendorOrgId, group.length, actor.organisationId, scheduledStartAt);
@@ -291,12 +307,4 @@ function shiftStartAt(date: Date, startTime: string): Date {
   const start = new Date(date);
   start.setUTCHours(hours, minutes, 0, 0);
   return start;
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    result.push(items.slice(i, i + size));
-  }
-  return result;
 }

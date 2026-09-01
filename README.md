@@ -58,9 +58,13 @@ live trip execution and commercial reconciliation:
   - `planning` — the automation loop: roster demand → grouping → eligible
     vendor/resource filtering (compliance + availability) → safety hard
     constraints → auto driver/vehicle/guard allocation → exceptions →
-    versioned plan → publish. A deterministic heuristic, not a real VRP
-    solver — see the module's doc comment for why that's an acceptable
-    starting point.
+    versioned plan → publish. Grouping clusters employees by home-location
+    proximity (nearest-neighbor clustering) and each group's stop order is
+    a nearest-neighbor + 2-opt route (`geo-routing.ts`, unit-tested)
+    instead of arbitrary roster order — geography-aware, but still a
+    heuristic, not an exact MILP/OR-Tools solver. Degrades gracefully to
+    the old fixed-size/roster-order behavior when a corporate hasn't
+    captured employee home coordinates.
   - `safety` — configurable safety policies/rules (last-drop restriction,
     mandatory guard, max ride time), evaluated as hard constraints and
     persisted with policy version + context for audit.
@@ -154,9 +158,10 @@ required beyond `realtime` itself.
 Not yet built: a dedicated Operator/Vendor Web (Vendor/Fleet Operator
 accounts currently use `corporate-web`'s shared shell), the Employee/
 Driver/Guard mobile apps, a genuine VRP/OR-Tools optimizer (`planning` is
-still the deterministic heuristic described above), HRMS/SSO integrations,
-and independent security hardening beyond the audit already done in this
-repo (VAPT, load testing) — see §17–21 of the specs for that scope.
+still a heuristic, not an exact solver — see `planning` above), HRMS/SSO
+integrations, and independent security hardening beyond the audit already
+done in this repo (VAPT, load testing) — see §17–21 of the specs for that
+scope.
 
 ## Getting started
 
