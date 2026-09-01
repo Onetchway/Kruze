@@ -27,16 +27,16 @@ export class ContractController {
   @UseGuards(RolesGuard)
   @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
   @Audited({ action: "CONTRACT_ACTIVATED", resourceType: "Contract" })
-  activate(@Param("id") id: string) {
-    return this.contracts.activate(id);
+  activate(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.contracts.activate(user, id);
   }
 
   @Post(":id/rate-cards")
   @UseGuards(RolesGuard)
   @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.VENDOR_ADMIN)
   @Audited({ action: "RATE_CARD_ADDED", resourceType: "RateCard" })
-  addRateCard(@Param("id") id: string, @Body() dto: CreateRateCardDto) {
-    return this.contracts.addRateCard(id, dto);
+  addRateCard(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: CreateRateCardDto) {
+    return this.contracts.addRateCard(user, id, dto);
   }
 
   @Get()

@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 import { LoggingChannelAdapter, NotificationChannelAdapter } from "./channel-adapter";
 import { NotificationChannel } from "../../generated/prisma";
 
@@ -59,9 +60,13 @@ export class NotificationService {
     });
   }
 
-  listForRecipient(recipientId: string) {
+  /** A caller may only list notifications addressed to themselves (by user id) or their own organisation. */
+  listForRecipient(actor: AuthenticatedUser, recipientId: string) {
+    if (actor.role !== "KRUZE_SUPER_ADMIN" && recipientId !== actor.userId && recipientId !== actor.organisationId) {
+      throw new ForbiddenException("Not authorized to view another recipient's notifications");
+    }
     return this.prisma.notification.findMany({
-      where: { recipientId },
+      where: { OR: [{ recipientId }, { recipientUserId: recipientId }] },
       orderBy: { createdAt: "desc" },
       take: 100,
     });

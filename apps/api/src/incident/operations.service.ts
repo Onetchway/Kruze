@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
 import { NotificationService } from "../notification/notification.service";
@@ -28,6 +28,9 @@ export class OperationsService {
     });
     if (!tripEmployee) {
       throw new NotFoundException("Trip employee not found");
+    }
+    if (tripEmployee.trip.corporateOrgId !== actor.organisationId && tripEmployee.trip.vendorOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Not a party to this trip");
     }
 
     await this.prisma.tripEmployee.update({ where: { id: tripEmployeeId }, data: { status: "NO_SHOW" } });

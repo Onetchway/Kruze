@@ -39,8 +39,9 @@ export class ContractService {
     });
   }
 
-  async activate(contractId: string) {
-    return this.prisma.contract.update({ where: { id: contractId }, data: { status: "ACTIVE" } });
+  async activate(actor: AuthenticatedUser, contractId: string) {
+    const contract = await this.getOwnedContract(actor, contractId);
+    return this.prisma.contract.update({ where: { id: contract.id }, data: { status: "ACTIVE" } });
   }
 
   listForOrganisation(organisationId: string) {
@@ -52,6 +53,7 @@ export class ContractService {
   }
 
   async addRateCard(
+    actor: AuthenticatedUser,
     contractId: string,
     input: {
       vehicleType: string;
@@ -62,19 +64,16 @@ export class ContractService {
       effectiveTo?: string;
     },
   ) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) {
-      throw new NotFoundException("Contract not found");
-    }
+    const contract = await this.getOwnedContract(actor, contractId);
 
     const latest = await this.prisma.rateCard.findFirst({
-      where: { contractId, vehicleType: input.vehicleType, zoneId: input.zoneId ?? null },
+      where: { contractId: contract.id, vehicleType: input.vehicleType, zoneId: input.zoneId ?? null },
       orderBy: { version: "desc" },
     });
 
     return this.prisma.rateCard.create({
       data: {
-        contractId,
+        contractId: contract.id,
         vehicleType: input.vehicleType,
         zoneId: input.zoneId,
         pricingModel: input.pricingModel,
@@ -111,5 +110,16 @@ export class ContractService {
       where: { contractId, vehicleType, zoneId: null, ...effectiveWindow },
       orderBy: { version: "desc" },
     });
+  }
+
+  private async getOwnedContract(actor: AuthenticatedUser, contractId: string) {
+    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
+    if (!contract) {
+      throw new NotFoundException("Contract not found");
+    }
+    if (contract.corporateOrgId !== actor.organisationId && contract.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Contract not found");
+    }
+    return contract;
   }
 }

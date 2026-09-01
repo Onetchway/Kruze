@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 
 /**
  * EV telemetry (spec §6.28/§7.27): SOC/range live state kept separate from
@@ -12,13 +13,11 @@ export class EvService {
   constructor(private readonly prisma: PrismaService) {}
 
   async updateBatteryState(
+    actor: AuthenticatedUser,
     vehicleId: string,
     input: { socPercent: number; estimatedRangeKm?: number; chargingStatus?: string },
   ) {
-    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
-    if (!vehicle) {
-      throw new NotFoundException("Vehicle not found");
-    }
+    const vehicle = await this.assertVehicleAccess(actor, vehicleId);
     if (!vehicle.isElectric) {
       throw new BadRequestException("Vehicle is not marked as electric");
     }
@@ -40,11 +39,13 @@ export class EvService {
     });
   }
 
-  getBatteryState(vehicleId: string) {
+  async getBatteryState(actor: AuthenticatedUser, vehicleId: string) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.vehicleBatteryState.findUnique({ where: { vehicleId } });
   }
 
-  logChargingSession(
+  async logChargingSession(
+    actor: AuthenticatedUser,
     vehicleId: string,
     input: {
       startedAt: string;
@@ -56,6 +57,7 @@ export class EvService {
       location?: string;
     },
   ) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.chargingSession.create({
       data: {
         vehicleId,
@@ -70,8 +72,23 @@ export class EvService {
     });
   }
 
-  chargingHistory(vehicleId: string) {
+  async chargingHistory(actor: AuthenticatedUser, vehicleId: string) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.chargingSession.findMany({ where: { vehicleId }, orderBy: { startedAt: "desc" }, take: 100 });
+  }
+
+  private async assertVehicleAccess(actor: AuthenticatedUser, vehicleId: string) {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) {
+      throw new NotFoundException("Vehicle not found");
+    }
+    const relationship = await this.prisma.vehicleVendorRelationship.findFirst({
+      where: { vehicleId, vendorOrgId: actor.organisationId, status: "ACTIVE" },
+    });
+    if (!relationship) {
+      throw new ForbiddenException("Not the vendor for this vehicle");
+    }
+    return vehicle;
   }
 
   /**

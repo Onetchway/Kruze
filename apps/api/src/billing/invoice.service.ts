@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 
 const VARIANCE_TOLERANCE = 0.01;
 
@@ -24,11 +25,8 @@ export class InvoiceService {
     });
   }
 
-  async addLine(invoiceId: string, input: { tripId: string; claimedAmount: number }) {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
-    if (!invoice) {
-      throw new NotFoundException("Invoice not found");
-    }
+  async addLine(actor: AuthenticatedUser, invoiceId: string, input: { tripId: string; claimedAmount: number }) {
+    const invoice = await this.getOwnedInvoice(actor, invoiceId);
 
     const tripCharge = await this.prisma.tripCharge.findUnique({ where: { tripId: input.tripId } });
 
@@ -51,7 +49,7 @@ export class InvoiceService {
 
     return this.prisma.invoiceLine.create({
       data: {
-        invoiceId,
+        invoiceId: invoice.id,
         tripId: input.tripId,
         claimedAmount: input.claimedAmount,
         approvedAmount,
@@ -61,18 +59,24 @@ export class InvoiceService {
     });
   }
 
-  async disputeLine(lineId: string, reason: string) {
+  async disputeLine(actor: AuthenticatedUser, lineId: string, reason: string) {
+    await this.getOwnedInvoiceForLine(actor, lineId);
     return this.prisma.invoiceLine.update({
       where: { id: lineId },
       data: { status: "DISPUTED", disputeReason: reason },
     });
   }
 
-  async approveLine(lineId: string) {
+  async approveLine(actor: AuthenticatedUser, lineId: string) {
+    const invoice = await this.getOwnedInvoiceForLine(actor, lineId);
+    if (invoice.corporateOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Only the invoice's corporate may approve a line");
+    }
     return this.prisma.invoiceLine.update({ where: { id: lineId }, data: { status: "APPROVED" } });
   }
 
-  async submit(invoiceId: string) {
+  async submit(actor: AuthenticatedUser, invoiceId: string) {
+    await this.getOwnedInvoice(actor, invoiceId);
     const lines = await this.prisma.invoiceLine.findMany({ where: { invoiceId } });
     if (lines.length === 0) {
       throw new BadRequestException("Cannot submit an invoice with no lines");
@@ -86,7 +90,11 @@ export class InvoiceService {
     });
   }
 
-  async approve(invoiceId: string) {
+  async approve(actor: AuthenticatedUser, invoiceId: string) {
+    const invoice = await this.getOwnedInvoice(actor, invoiceId);
+    if (invoice.corporateOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Only the invoice's corporate may approve it");
+    }
     const disputed = await this.prisma.invoiceLine.count({ where: { invoiceId, status: "DISPUTED" } });
     if (disputed > 0) {
       throw new BadRequestException("Cannot approve an invoice with unresolved disputed lines");
@@ -100,5 +108,27 @@ export class InvoiceService {
       include: { lines: true },
       orderBy: { createdAt: "desc" },
     });
+  }
+
+  private async getOwnedInvoice(actor: AuthenticatedUser, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
+    if (!invoice) {
+      throw new NotFoundException("Invoice not found");
+    }
+    if (invoice.corporateOrgId !== actor.organisationId && invoice.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Invoice not found");
+    }
+    return invoice;
+  }
+
+  private async getOwnedInvoiceForLine(actor: AuthenticatedUser, lineId: string) {
+    const line = await this.prisma.invoiceLine.findUnique({ where: { id: lineId }, include: { invoice: true } });
+    if (!line) {
+      throw new NotFoundException("Invoice line not found");
+    }
+    if (line.invoice.corporateOrgId !== actor.organisationId && line.invoice.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Invoice line not found");
+    }
+    return line.invoice;
   }
 }

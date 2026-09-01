@@ -17,7 +17,9 @@ import { OrganisationModule } from "../organisation/organisation.module";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>("JWT_ACCESS_SECRET") ?? "dev-only-secret",
+        // No fallback: a missing secret must fail startup loudly, never
+        // silently sign/verify tokens with a public, known value.
+        secret: config.getOrThrow<string>("JWT_ACCESS_SECRET"),
         signOptions: { expiresIn: config.get<string>("JWT_ACCESS_TTL") ?? "15m" },
       }),
     }),

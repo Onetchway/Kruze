@@ -28,8 +28,8 @@ export class IncidentController {
   }
 
   @Get()
-  list(@Query("status") status?: string) {
-    return this.incidents.list(status);
+  list(@CurrentUser() user: AuthenticatedUser, @Query("status") status?: string) {
+    return this.incidents.list(user, status);
   }
 }
 

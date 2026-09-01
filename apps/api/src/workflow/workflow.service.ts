@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuthenticatedUser } from "../common/request-context";
 
@@ -32,7 +32,7 @@ export class WorkflowService {
   }
 
   async approve(actor: AuthenticatedUser, requestId: string, reason?: string) {
-    const request = await this.getPending(requestId);
+    const request = await this.getPending(actor, requestId);
     return this.prisma.approvalRequest.update({
       where: { id: request.id },
       data: { status: "APPROVED", decidedByUserId: actor.userId, decisionReason: reason, decidedAt: new Date() },
@@ -40,33 +40,48 @@ export class WorkflowService {
   }
 
   async reject(actor: AuthenticatedUser, requestId: string, reason?: string) {
-    const request = await this.getPending(requestId);
+    const request = await this.getPending(actor, requestId);
     return this.prisma.approvalRequest.update({
       where: { id: request.id },
       data: { status: "REJECTED", decidedByUserId: actor.userId, decisionReason: reason, decidedAt: new Date() },
     });
   }
 
-  async cancel(requestId: string) {
-    const request = await this.getPending(requestId);
+  async cancel(actor: AuthenticatedUser, requestId: string) {
+    const request = await this.getPending(actor, requestId);
     return this.prisma.approvalRequest.update({ where: { id: request.id }, data: { status: "CANCELLED" } });
   }
 
-  listPending(workflowType?: string) {
+  /** KRUZE_SUPER_ADMIN sees every org's pending requests; anyone else sees only their own org's (plus platform-wide, org-less ones). */
+  listPending(actor: AuthenticatedUser, workflowType?: string) {
     return this.prisma.approvalRequest.findMany({
-      where: { status: "PENDING", workflowType },
+      where: {
+        status: "PENDING",
+        workflowType,
+        ...(actor.role === "KRUZE_SUPER_ADMIN" ? {} : { OR: [{ organisationId: actor.organisationId }, { organisationId: null }] }),
+      },
       orderBy: { createdAt: "asc" },
     });
   }
 
-  forResource(resourceType: string, resourceId: string) {
-    return this.prisma.approvalRequest.findMany({ where: { resourceType, resourceId }, orderBy: { createdAt: "desc" } });
+  forResource(actor: AuthenticatedUser, resourceType: string, resourceId: string) {
+    return this.prisma.approvalRequest.findMany({
+      where: {
+        resourceType,
+        resourceId,
+        ...(actor.role === "KRUZE_SUPER_ADMIN" ? {} : { OR: [{ organisationId: actor.organisationId }, { organisationId: null }] }),
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
-  private async getPending(requestId: string) {
+  private async getPending(actor: AuthenticatedUser, requestId: string) {
     const request = await this.prisma.approvalRequest.findUnique({ where: { id: requestId } });
     if (!request) {
       throw new NotFoundException("Approval request not found");
+    }
+    if (actor.role !== "KRUZE_SUPER_ADMIN" && request.organisationId && request.organisationId !== actor.organisationId) {
+      throw new ForbiddenException("Not authorized to act on this approval request");
     }
     if (request.status !== "PENDING") {
       throw new BadRequestException(`Approval request is not pending (status=${request.status})`);

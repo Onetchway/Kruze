@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 import { haversineDistanceMeters } from "./geo.util";
 
 const FUTURE_TOLERANCE_MS = 60_000;
@@ -15,17 +16,33 @@ const FUTURE_TOLERANCE_MS = 60_000;
 export class TrackingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async ingest(input: {
-    tripId?: string;
-    driverId?: string;
-    vehicleId?: string;
-    latitude: number;
-    longitude: number;
-    accuracy?: number;
-    speed?: number;
-    source?: string;
-    recordedAt: string;
-  }) {
+  async ingest(
+    actor: AuthenticatedUser,
+    input: {
+      tripId?: string;
+      driverId?: string;
+      vehicleId?: string;
+      latitude: number;
+      longitude: number;
+      accuracy?: number;
+      speed?: number;
+      source?: string;
+      recordedAt: string;
+    },
+  ) {
+    if (!input.tripId && !input.vehicleId && !input.driverId) {
+      throw new BadRequestException("At least one of tripId, vehicleId, driverId is required");
+    }
+    if (input.tripId) {
+      await this.assertTripAccess(actor, input.tripId);
+    }
+    if (input.vehicleId) {
+      await this.assertVehicleAccess(actor, input.vehicleId);
+    }
+    if (input.driverId) {
+      await this.assertDriverAccess(actor, input.driverId);
+    }
+
     const recordedAt = new Date(input.recordedAt);
     if (recordedAt.getTime() > Date.now() + FUTURE_TOLERANCE_MS) {
       throw new BadRequestException("recordedAt is in the future — rejecting as an impossible point");
@@ -46,21 +63,24 @@ export class TrackingService {
     });
   }
 
-  latestForVehicle(vehicleId: string) {
+  async latestForVehicle(actor: AuthenticatedUser, vehicleId: string) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.locationEvent.findFirst({
       where: { vehicleId },
       orderBy: { recordedAt: "desc" },
     });
   }
 
-  latestForTrip(tripId: string) {
+  async latestForTrip(actor: AuthenticatedUser, tripId: string) {
+    await this.assertTripAccess(actor, tripId);
     return this.prisma.locationEvent.findFirst({
       where: { tripId },
       orderBy: { recordedAt: "desc" },
     });
   }
 
-  historyForTrip(tripId: string, limit = 200) {
+  async historyForTrip(actor: AuthenticatedUser, tripId: string, limit = 200) {
+    await this.assertTripAccess(actor, tripId);
     return this.prisma.locationEvent.findMany({
       where: { tripId },
       orderBy: { recordedAt: "desc" },
@@ -87,5 +107,33 @@ export class TrackingService {
       point,
     );
     return { withinGeofence: distanceMeters <= geofence.radiusMeters, distanceMeters };
+  }
+
+  private async assertTripAccess(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      throw new NotFoundException("Trip not found");
+    }
+    if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Not a party to this trip");
+    }
+  }
+
+  private async assertVehicleAccess(actor: AuthenticatedUser, vehicleId: string) {
+    const relationship = await this.prisma.vehicleVendorRelationship.findFirst({
+      where: { vehicleId, vendorOrgId: actor.organisationId, status: "ACTIVE" },
+    });
+    if (!relationship) {
+      throw new ForbiddenException("Not the vendor for this vehicle");
+    }
+  }
+
+  private async assertDriverAccess(actor: AuthenticatedUser, driverId: string) {
+    const relationship = await this.prisma.driverVendorRelationship.findFirst({
+      where: { driverId, vendorOrgId: actor.organisationId, status: "ACTIVE" },
+    });
+    if (!relationship) {
+      throw new ForbiddenException("Not the vendor for this driver");
+    }
   }
 }

@@ -1,15 +1,18 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 import { MaintenanceType } from "../../generated/prisma";
 
 @Injectable()
 export class MaintenanceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  schedule(
+  async schedule(
+    actor: AuthenticatedUser,
     vehicleId: string,
     input: { type: MaintenanceType; scheduledAt?: string; workshop?: string; notes?: string; blocksDeployment?: boolean },
   ) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.maintenanceRecord.create({
       data: {
         vehicleId,
@@ -22,25 +25,26 @@ export class MaintenanceService {
     });
   }
 
-  async start(recordId: string) {
-    await this.assertExists(recordId);
+  async start(actor: AuthenticatedUser, recordId: string) {
+    await this.assertRecordAccess(actor, recordId);
     return this.prisma.maintenanceRecord.update({ where: { id: recordId }, data: { status: "IN_PROGRESS" } });
   }
 
-  async complete(recordId: string, input: { odometerKm?: number; cost?: number; notes?: string }) {
-    await this.assertExists(recordId);
+  async complete(actor: AuthenticatedUser, recordId: string, input: { odometerKm?: number; cost?: number; notes?: string }) {
+    await this.assertRecordAccess(actor, recordId);
     return this.prisma.maintenanceRecord.update({
       where: { id: recordId },
       data: { status: "COMPLETED", completedAt: new Date(), ...input },
     });
   }
 
-  async cancel(recordId: string) {
-    await this.assertExists(recordId);
+  async cancel(actor: AuthenticatedUser, recordId: string) {
+    await this.assertRecordAccess(actor, recordId);
     return this.prisma.maintenanceRecord.update({ where: { id: recordId }, data: { status: "CANCELLED" } });
   }
 
-  history(vehicleId: string) {
+  async history(actor: AuthenticatedUser, vehicleId: string) {
+    await this.assertVehicleAccess(actor, vehicleId);
     return this.prisma.maintenanceRecord.findMany({ where: { vehicleId }, orderBy: { createdAt: "desc" } });
   }
 
@@ -52,11 +56,21 @@ export class MaintenanceService {
     return Boolean(blocking);
   }
 
-  private async assertExists(recordId: string) {
+  private async assertVehicleAccess(actor: AuthenticatedUser, vehicleId: string) {
+    const relationship = await this.prisma.vehicleVendorRelationship.findFirst({
+      where: { vehicleId, vendorOrgId: actor.organisationId, status: "ACTIVE" },
+    });
+    if (!relationship) {
+      throw new ForbiddenException("Not the vendor for this vehicle");
+    }
+  }
+
+  private async assertRecordAccess(actor: AuthenticatedUser, recordId: string) {
     const record = await this.prisma.maintenanceRecord.findUnique({ where: { id: recordId } });
     if (!record) {
       throw new NotFoundException("Maintenance record not found");
     }
+    await this.assertVehicleAccess(actor, record.vehicleId);
     return record;
   }
 }

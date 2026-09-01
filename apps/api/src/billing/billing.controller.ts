@@ -19,13 +19,13 @@ export class TripChargeController {
 
   @Post()
   @Audited({ action: "TRIP_CHARGE_COMPUTED", resourceType: "TripCharge" })
-  compute(@Param("tripId") tripId: string) {
-    return this.charges.computeForTrip(tripId);
+  compute(@CurrentUser() user: AuthenticatedUser, @Param("tripId") tripId: string) {
+    return this.charges.computeForTrip(user, tripId);
   }
 
   @Get()
-  get(@Param("tripId") tripId: string) {
-    return this.charges.getForTrip(tripId);
+  get(@CurrentUser() user: AuthenticatedUser, @Param("tripId") tripId: string) {
+    return this.charges.getForTrip(user, tripId);
   }
 }
 
@@ -44,36 +44,36 @@ export class InvoiceController {
   @Post(":id/lines")
   @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.VENDOR_ADMIN)
   @Audited({ action: "INVOICE_LINE_ADDED", resourceType: "InvoiceLine" })
-  addLine(@Param("id") id: string, @Body() dto: AddInvoiceLineDto) {
-    return this.invoices.addLine(id, dto);
+  addLine(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: AddInvoiceLineDto) {
+    return this.invoices.addLine(user, id, dto);
   }
 
   @Post("lines/:lineId/dispute")
   @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.VENDOR_ADMIN)
   @Audited({ action: "INVOICE_LINE_DISPUTED", resourceType: "InvoiceLine" })
-  disputeLine(@Param("lineId") lineId: string, @Body() dto: DisputeInvoiceLineDto) {
-    return this.invoices.disputeLine(lineId, dto.reason);
+  disputeLine(@CurrentUser() user: AuthenticatedUser, @Param("lineId") lineId: string, @Body() dto: DisputeInvoiceLineDto) {
+    return this.invoices.disputeLine(user, lineId, dto.reason);
   }
 
   @Post("lines/:lineId/approve")
   @Roles(PlatformRole.CORPORATE_FINANCE)
   @Audited({ action: "INVOICE_LINE_APPROVED", resourceType: "InvoiceLine" })
-  approveLine(@Param("lineId") lineId: string) {
-    return this.invoices.approveLine(lineId);
+  approveLine(@CurrentUser() user: AuthenticatedUser, @Param("lineId") lineId: string) {
+    return this.invoices.approveLine(user, lineId);
   }
 
   @Post(":id/submit")
   @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.VENDOR_ADMIN)
   @Audited({ action: "INVOICE_SUBMITTED", resourceType: "Invoice" })
-  submit(@Param("id") id: string) {
-    return this.invoices.submit(id);
+  submit(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.invoices.submit(user, id);
   }
 
   @Post(":id/approve")
   @Roles(PlatformRole.CORPORATE_FINANCE)
   @Audited({ action: "INVOICE_APPROVED", resourceType: "Invoice" })
-  approve(@Param("id") id: string) {
-    return this.invoices.approve(id);
+  approve(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.invoices.approve(user, id);
   }
 
   @Get()

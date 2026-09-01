@@ -25,8 +25,8 @@ export class TripController {
   }
 
   @Get(":id")
-  get(@Param("id") id: string) {
-    return this.trips.get(id);
+  get(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.trips.get(user, id);
   }
 
   @Post(":id/transition")

@@ -11,7 +11,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>("JWT_ACCESS_SECRET") ?? "dev-only-secret",
+      // No fallback: a missing secret must fail startup loudly, never
+      // silently sign/verify tokens with a public, known value.
+      secretOrKey: config.getOrThrow<string>("JWT_ACCESS_SECRET"),
     });
   }
 

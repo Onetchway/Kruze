@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { ContractService } from "../contract/contract.service";
+import { AuthenticatedUser } from "../common/request-context";
 
 interface RateSlab {
   /** Slab applies for distance in (minKm, maxKm] — maxKm omitted means "and beyond". */
@@ -45,12 +46,15 @@ export class TripChargeService {
     private readonly contracts: ContractService,
   ) {}
 
-  async computeForTrip(tripId: string) {
+  async computeForTrip(actor: AuthenticatedUser, tripId: string) {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
       include: { assignments: { where: { status: "ACTIVE" }, include: { vehicle: true } } },
     });
     if (!trip) {
+      throw new NotFoundException("Trip not found");
+    }
+    if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
       throw new NotFoundException("Trip not found");
     }
     if (trip.status !== "COMPLETED") {
@@ -111,7 +115,14 @@ export class TripChargeService {
     });
   }
 
-  getForTrip(tripId: string) {
+  async getForTrip(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      throw new NotFoundException("Trip not found");
+    }
+    if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Trip not found");
+    }
     return this.prisma.tripCharge.findUnique({ where: { tripId } });
   }
 }

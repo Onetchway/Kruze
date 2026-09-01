@@ -46,19 +46,23 @@ export class WorkflowController {
 
   @Post(":id/cancel")
   @Audited({ action: "APPROVAL_CANCELLED", resourceType: "ApprovalRequest" })
-  cancel(@Param("id") id: string) {
-    return this.workflow.cancel(id);
+  cancel(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.workflow.cancel(user, id);
   }
 
   @Get("pending")
   @UseGuards(RolesGuard)
   @Roles(...APPROVER_ROLES)
-  listPending(@Query("workflowType") workflowType?: string) {
-    return this.workflow.listPending(workflowType);
+  listPending(@CurrentUser() user: AuthenticatedUser, @Query("workflowType") workflowType?: string) {
+    return this.workflow.listPending(user, workflowType);
   }
 
   @Get("resource/:resourceType/:resourceId")
-  forResource(@Param("resourceType") resourceType: string, @Param("resourceId") resourceId: string) {
-    return this.workflow.forResource(resourceType, resourceId);
+  forResource(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("resourceType") resourceType: string,
+    @Param("resourceId") resourceId: string,
+  ) {
+    return this.workflow.forResource(user, resourceType, resourceId);
   }
 }

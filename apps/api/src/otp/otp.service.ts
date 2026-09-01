@@ -27,6 +27,9 @@ export class OtpService {
     if (!tripEmployee) {
       throw new NotFoundException("Trip employee not found");
     }
+    if (tripEmployee.trip.corporateOrgId !== actor.organisationId && tripEmployee.trip.vendorOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Not a party to this trip");
+    }
 
     const code = String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
     const codeHash = await argon2.hash(code, { type: argon2.argon2id });
@@ -54,14 +57,17 @@ export class OtpService {
     return { otpChallengeId: challenge.id, code, expiresAt: challenge.expiresAt };
   }
 
-  async verify(otpChallengeId: string, code: string, location?: { latitude: number; longitude: number }) {
+  async verify(actor: AuthenticatedUser, otpChallengeId: string, code: string, location?: { latitude: number; longitude: number }) {
     return this.prisma.$transaction(async (tx) => {
       const challenge = await tx.otpChallenge.findUnique({
         where: { id: otpChallengeId },
-        include: { tripEmployee: true },
+        include: { tripEmployee: true, trip: true },
       });
       if (!challenge) {
         throw new NotFoundException("OTP challenge not found");
+      }
+      if (challenge.trip.corporateOrgId !== actor.organisationId && challenge.trip.vendorOrgId !== actor.organisationId) {
+        throw new ForbiddenException("Not a party to this trip");
       }
       if (challenge.status !== "PENDING") {
         throw new BadRequestException(`OTP is not pending (status=${challenge.status})`);
@@ -119,9 +125,16 @@ export class OtpService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const challenge = await tx.otpChallenge.findUnique({ where: { id: otpChallengeId } });
+      const challenge = await tx.otpChallenge.findUnique({ where: { id: otpChallengeId }, include: { trip: true } });
       if (!challenge) {
         throw new NotFoundException("OTP challenge not found");
+      }
+      if (
+        actor.role !== "KRUZE_SUPER_ADMIN" &&
+        challenge.trip.corporateOrgId !== actor.organisationId &&
+        challenge.trip.vendorOrgId !== actor.organisationId
+      ) {
+        throw new ForbiddenException("Not a party to this trip");
       }
 
       await tx.otpChallenge.update({

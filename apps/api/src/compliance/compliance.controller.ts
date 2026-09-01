@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
 import { DocumentService } from "./document.service";
 import { ComplianceRuleService } from "./compliance-rule.service";
@@ -33,8 +33,8 @@ export class DocumentController {
   }
 
   @Get()
-  list(@Query("entityType") entityType: ComplianceSubjectType, @Query("entityId") entityId: string) {
-    return this.documents.listForEntity(entityType, entityId);
+  list(@CurrentUser() user: AuthenticatedUser, @Query("entityType") entityType: ComplianceSubjectType, @Query("entityId") entityId: string) {
+    return this.documents.listForEntity(user, entityType, entityId);
   }
 }
 
@@ -64,11 +64,19 @@ export class ComplianceController {
   /** GET /v1/compliance/eligibility?subjectType=DRIVER&subjectId=...&vendorOrgId=...&corporateOrgId=... */
   @Get("eligibility")
   eligibility(
+    @CurrentUser() user: AuthenticatedUser,
     @Query("subjectType") subjectType: ComplianceSubjectType,
     @Query("subjectId") subjectId: string,
     @Query("vendorOrgId") vendorOrgId?: string,
     @Query("corporateOrgId") corporateOrgId?: string,
   ) {
+    if (
+      user.role !== "KRUZE_SUPER_ADMIN" &&
+      vendorOrgId !== user.organisationId &&
+      corporateOrgId !== user.organisationId
+    ) {
+      throw new ForbiddenException("Not authorized to check eligibility for this organisation context");
+    }
     return this.compliance.evaluate(subjectType, subjectId, { vendorOrgId, corporateOrgId });
   }
 }

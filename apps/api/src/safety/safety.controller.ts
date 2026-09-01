@@ -24,7 +24,7 @@ export class SafetyController {
 
   @Post(":id/rules")
   @Audited({ action: "SAFETY_RULE_ADDED", resourceType: "SafetyRule" })
-  addRule(@Param("id") policyId: string, @Body() dto: CreateSafetyRuleDto) {
-    return this.safety.addRule(policyId, dto);
+  addRule(@CurrentUser() user: AuthenticatedUser, @Param("id") policyId: string, @Body() dto: CreateSafetyRuleDto) {
+    return this.safety.addRule(user, policyId, dto);
   }
 }

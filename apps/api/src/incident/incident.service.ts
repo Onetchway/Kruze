@@ -52,8 +52,11 @@ export class IncidentService {
   }
 
   async close(actor: AuthenticatedUser, incidentId: string, correctiveAction: string) {
-    const incident = await this.prisma.incident.findUnique({ where: { id: incidentId } });
+    const incident = await this.prisma.incident.findUnique({ where: { id: incidentId }, include: { trip: true } });
     if (!incident) {
+      throw new NotFoundException("Incident not found");
+    }
+    if (!this.canAccess(actor, incident)) {
       throw new NotFoundException("Incident not found");
     }
     if (incident.status === "CLOSED") {
@@ -65,11 +68,32 @@ export class IncidentService {
     });
   }
 
-  list(status?: string) {
+  list(actor: AuthenticatedUser, status?: string) {
     return this.prisma.incident.findMany({
-      where: status ? { status: status as never } : undefined,
+      where: {
+        status: status ? (status as never) : undefined,
+        ...(actor.role === "KRUZE_SUPER_ADMIN"
+          ? {}
+          : {
+              OR: [
+                { trip: { corporateOrgId: actor.organisationId } },
+                { trip: { vendorOrgId: actor.organisationId } },
+                { tripId: null, reportedByUserId: actor.userId },
+              ],
+            }),
+      },
       orderBy: { createdAt: "desc" },
       take: 200,
     });
+  }
+
+  private canAccess(actor: AuthenticatedUser, incident: { tripId: string | null; reportedByUserId: string | null; trip: { corporateOrgId: string; vendorOrgId: string | null } | null }) {
+    if (actor.role === "KRUZE_SUPER_ADMIN") {
+      return true;
+    }
+    if (incident.trip) {
+      return incident.trip.corporateOrgId === actor.organisationId || incident.trip.vendorOrgId === actor.organisationId;
+    }
+    return incident.reportedByUserId === actor.userId;
   }
 }

@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { AuthenticatedUser } from "../common/request-context";
 import { SafetyRuleType } from "../../generated/prisma";
 
 export interface RouteEmployeeContext {
@@ -43,7 +44,14 @@ export class SafetyService {
     return this.prisma.safetyPolicy.create({ data: { corporateOrgId, name } });
   }
 
-  addRule(policyId: string, input: { type: SafetyRuleType; config: unknown; mandatory?: boolean }) {
+  async addRule(actor: AuthenticatedUser, policyId: string, input: { type: SafetyRuleType; config: unknown; mandatory?: boolean }) {
+    const policy = await this.prisma.safetyPolicy.findUnique({ where: { id: policyId } });
+    if (!policy) {
+      throw new NotFoundException("Safety policy not found");
+    }
+    if (policy.corporateOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Not authorized to modify another corporate's safety policy");
+    }
     return this.prisma.safetyRule.create({
       data: {
         policyId,

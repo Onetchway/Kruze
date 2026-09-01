@@ -21,11 +21,11 @@ export class OtpController {
 
   @Post("otp-challenges/:id/verify")
   @Audited({ action: "OTP_VERIFIED", resourceType: "OtpChallenge" })
-  verify(@Param("id") id: string, @Body() dto: VerifyOtpDto) {
+  verify(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: VerifyOtpDto) {
     const location = dto.latitude !== undefined && dto.longitude !== undefined
       ? { latitude: dto.latitude, longitude: dto.longitude }
       : undefined;
-    return this.otp.verify(id, dto.code, location);
+    return this.otp.verify(user, id, dto.code, location);
   }
 
   @Post("otp-challenges/:id/override")

@@ -49,7 +49,11 @@ export class DocumentService {
     });
   }
 
-  listForEntity(entityType: ComplianceSubjectType, entityId: string) {
+  async listForEntity(actor: AuthenticatedUser, entityType: ComplianceSubjectType, entityId: string) {
+    const owningOrgIds = await resolveOwningVendorOrgIds(this.prisma, entityType, entityId);
+    if (!owningOrgIds.includes(actor.organisationId) && actor.role !== "KRUZE_SUPER_ADMIN") {
+      throw new ForbiddenException("Not authorized to view documents for this resource");
+    }
     return this.prisma.document.findMany({
       where: { entityType, entityId },
       orderBy: { createdAt: "desc" },

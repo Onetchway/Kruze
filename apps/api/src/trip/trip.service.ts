@@ -172,11 +172,18 @@ export class TripService {
     });
   }
 
-  get(tripId: string) {
-    return this.prisma.trip.findUniqueOrThrow({
+  async get(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
       include: { employees: true, assignments: { where: { status: "ACTIVE" } }, events: { orderBy: { createdAt: "desc" } } },
     });
+    if (!trip) {
+      throw new NotFoundException("Trip not found");
+    }
+    if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Trip not found");
+    }
+    return trip;
   }
 
   listForOrganisation(organisationId: string) {
