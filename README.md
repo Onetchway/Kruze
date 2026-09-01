@@ -80,11 +80,19 @@ live trip execution and commercial reconciliation:
     onboarding, invoice approval, manual overrides, etc., instead of a
     bespoke table per approval type.
 
-Not yet built: the frontend/mobile apps (Next.js/React/Flutter per the
-spec), a real Kafka/WebSocket event backbone (the modules above call each
-other directly and log-only for notifications), a genuine VRP/OR-Tools
-optimizer, HRMS/SSO integrations, and independent security hardening
-(VAPT, load testing) — see §17–21 of the specs for that scope.
+**`apps/corporate-web`**: Next.js (App Router) + TypeScript — the Corporate
+Portal, the first of the spec's application surfaces (§6/§16.1). Self-serve
+signup (creates organisation + admin membership + session in one call),
+shifts, employees with roster opt-in, and the automation-first Dashboard —
+generate a plan, see the same "N employees / N trips / N exceptions" summary
+and exception-review CTA the spec's UX section describes, then publish.
+
+Not yet built: the remaining application surfaces (Admin Web, Operator/
+Vendor Web, Control Room, and the Employee/Driver/Guard mobile apps), a real
+Kafka/WebSocket event backbone (the modules above call each other directly
+and log-only for notifications), a genuine VRP/OR-Tools optimizer, HRMS/SSO
+integrations, and independent security hardening (VAPT, load testing) —
+see §17–21 of the specs for that scope.
 
 ## Getting started
 
@@ -101,7 +109,14 @@ pnpm --filter @kruze/api exec prisma migrate deploy
 pnpm api:dev       # start the API on :3000 (prefix /v1)
 pnpm api:test      # unit tests
 pnpm api:test:e2e  # e2e tests, incl. tenant-isolation authorization suite
+
+cp apps/corporate-web/.env.local.example apps/corporate-web/.env.local
+pnpm --filter @kruze/corporate-web dev -- -p 3100   # Corporate Portal on :3100
 ```
+
+Open http://localhost:3100, "Create an account" to self-register a
+corporate, then create a shift, add an employee, opt them in for today, and
+Generate Plan on the Dashboard.
 
 ## Correctness is tested, not promised
 
@@ -133,6 +148,7 @@ Two e2e suites run against a real PostgreSQL database on every CI run:
 ```
 apps/
   api/                 NestJS backend (modular monolith)
+  corporate-web/       Next.js Corporate Portal
 packages/
   domain/              Shared enums/types used across apps
 docs/

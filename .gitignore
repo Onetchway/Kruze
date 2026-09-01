@@ -11,3 +11,5 @@ apps/*/node_modules/
 packages/*/node_modules/
 apps/api/generated/
 *.tsbuildinfo
+.next/
+next-env.d.ts
