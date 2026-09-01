@@ -119,10 +119,27 @@ bundles), and Subscriptions (subscribe an organisation to a plan,
 activate/suspend/cancel) — all against the existing `organisations` and
 `subscription`-module endpoints, no new backend surface required.
 
-Not yet built: the remaining application surfaces (Operator/Vendor Web,
-Control Room, and the Employee/Driver/Guard mobile apps), a real
-Kafka/WebSocket event backbone (the modules above call each other directly
-and log-only for notifications), a genuine VRP/OR-Tools optimizer, HRMS/SSO
+**`apps/control-room-web`**: Next.js (App Router) + TypeScript, for
+supervisors/dispatchers on either side (corporate or vendor). **Live
+Trips** lists trips in a dispatch-relevant status (assigned/running/SOS/
+breakdown/reassigning), polling every 10s, with a per-trip detail page
+(live GPS position via `GET /tracking/trips/:id/latest`, polled every 8s;
+employee pickup/drop verification state; current assignment; event log)
+and the three live-intervention actions the spec's exception-first UX
+calls for: report a breakdown (`POST /trips/:tripId/breakdown`), assign a
+replacement driver/vehicle once in BREAKDOWN state (`POST /trips/:tripId/
+replace`), and a supervisor OTP override for a stuck pickup/drop (`POST
+/otp-challenges/:id/override`). **Incidents / SOS** lists open incidents
+(SOS alerts called out separately) with a close-with-corrective-action
+action. All against existing trip/tracking/incident/otp endpoints — no
+new backend surface required.
+
+Not yet built: the remaining application surfaces (a dedicated Operator/
+Vendor Web — Vendor/Fleet Operator accounts currently use
+`corporate-web`'s shared shell — and the Employee/Driver/Guard mobile
+apps), a real Kafka/WebSocket event backbone (the modules above call each
+other directly and log-only for notifications; Control Room polls rather
+than subscribing), a genuine VRP/OR-Tools optimizer, HRMS/SSO
 integrations, and independent security hardening (VAPT, load testing) —
 see §17–21 of the specs for that scope.
 
@@ -149,6 +166,9 @@ pnpm --filter @kruze/api exec ts-node -r tsconfig-paths/register prisma/seed-sup
 
 cp apps/admin-web/.env.local.example apps/admin-web/.env.local
 pnpm --filter @kruze/admin-web dev -- -p 3200       # Admin console on :3200
+
+cp apps/control-room-web/.env.local.example apps/control-room-web/.env.local
+pnpm --filter @kruze/control-room-web dev -- -p 3300  # Control Room on :3300
 ```
 
 Open http://localhost:3100, "Create an account" to self-register a
