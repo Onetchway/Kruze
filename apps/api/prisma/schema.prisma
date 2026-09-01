@@ -34,9 +34,9 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  memberships       OrganisationMembership[]
-  auditLogsAsActor  AuditLog[]
-  relationshipsInvited OrganisationRelationship[] @relation("RelationshipCreatedBy")
+  memberships           OrganisationMembership[]
+  auditLogsAsActor      AuditLog[]
+  relationshipsInvited  OrganisationRelationship[] @relation("RelationshipCreatedBy")
   relationshipsApproved OrganisationRelationship[] @relation("RelationshipApprovedBy")
 
   @@map("users")
@@ -62,31 +62,38 @@ enum OrganisationStatus {
 }
 
 model Organisation {
-  id           String             @id @default(uuid())
+  id          String             @id @default(uuid())
   /// Human-readable Kruze ID (e.g. KZ-COR-000001). Display/reference only —
   /// never used as an authorization boundary; `id` (UUID) is authoritative.
-  globalOrgId  String             @unique
-  legalName    String
-  displayName  String
+  globalOrgId String             @unique
+  legalName   String
+  displayName String
   /// An organisation may carry more than one role (e.g. operator + vendor).
-  roles        OrganisationRole[]
-  status       OrganisationStatus @default(PENDING_APPROVAL)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  roles       OrganisationRole[]
+  status      OrganisationStatus @default(PENDING_APPROVAL)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
-  memberships           OrganisationMembership[]
-  corporateProfile       Corporate?
-  vendorProfile          VendorProfile?
+  memberships      OrganisationMembership[]
+  corporateProfile Corporate?
+  vendorProfile    VendorProfile?
 
-  relationshipsAsSource  OrganisationRelationship[] @relation("RelationshipSource")
-  relationshipsAsTarget  OrganisationRelationship[] @relation("RelationshipTarget")
+  relationshipsAsSource OrganisationRelationship[] @relation("RelationshipSource")
+  relationshipsAsTarget OrganisationRelationship[] @relation("RelationshipTarget")
 
-  driverVendorRelationships DriverVendorRelationship[]
-  vehicleVendorRelationships VehicleVendorRelationship[]
-  guardVendorRelationships   GuardVendorRelationship[]
+  driverVendorRelationships      DriverVendorRelationship[]
+  vehicleVendorRelationships     VehicleVendorRelationship[]
+  guardVendorRelationships       GuardVendorRelationship[]
   corporateResourceEligibilities CorporateResourceEligibility[] @relation("EligibilityCorporate")
 
   auditLogs AuditLog[]
+
+  employees        Employee[]
+  shifts           Shift[]
+  transportPlans   TransportPlan[]
+  safetyPolicies   SafetyPolicy[]
+  tripsAsCorporate Trip[]          @relation("TripCorporate")
+  tripsAsVendor    Trip[]          @relation("TripVendor")
 
   @@map("organisations")
 }
@@ -116,13 +123,13 @@ enum PlatformRole {
 }
 
 model OrganisationMembership {
-  id             String            @id @default(uuid())
+  id             String           @id @default(uuid())
   userId         String
   organisationId String
   role           PlatformRole
-  status         MembershipStatus  @default(ACTIVE)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   user         User         @relation(fields: [userId], references: [id])
   organisation Organisation @relation(fields: [organisationId], references: [id])
@@ -167,10 +174,10 @@ model OrganisationRelationship {
   createdAt        DateTime                       @default(now())
   updatedAt        DateTime                       @updatedAt
 
-  sourceOrg Organisation @relation("RelationshipSource", fields: [sourceOrgId], references: [id])
-  targetOrg Organisation @relation("RelationshipTarget", fields: [targetOrgId], references: [id])
-  createdBy User         @relation("RelationshipCreatedBy", fields: [createdByUserId], references: [id])
-  approvedBy User?       @relation("RelationshipApprovedBy", fields: [approvedByUserId], references: [id])
+  sourceOrg  Organisation @relation("RelationshipSource", fields: [sourceOrgId], references: [id])
+  targetOrg  Organisation @relation("RelationshipTarget", fields: [targetOrgId], references: [id])
+  createdBy  User         @relation("RelationshipCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy User?        @relation("RelationshipApprovedBy", fields: [approvedByUserId], references: [id])
 
   @@index([sourceOrgId, status])
   @@index([targetOrgId, status])
@@ -231,21 +238,22 @@ model Driver {
   updatedAt      DateTime @updatedAt
 
   vendorRelationships DriverVendorRelationship[]
+  tripAssignments     TripAssignment[]
 
   @@map("drivers")
 }
 
 model DriverVendorRelationship {
-  id                 String                      @id @default(uuid())
-  driverId           String
-  vendorOrgId        String
-  status             ResourceRelationshipStatus  @default(PENDING)
-  employmentType     String?
-  operatingCities    String[]                    @default([])
-  startsAt           DateTime?
-  endsAt             DateTime?
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
+  id              String                     @id @default(uuid())
+  driverId        String
+  vendorOrgId     String
+  status          ResourceRelationshipStatus @default(PENDING)
+  employmentType  String?
+  operatingCities String[]                   @default([])
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
 
   driver    Driver       @relation(fields: [driverId], references: [id])
   vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
@@ -269,20 +277,21 @@ model Vehicle {
   updatedAt       DateTime @updatedAt
 
   vendorRelationships VehicleVendorRelationship[]
+  tripAssignments     TripAssignment[]
 
   @@map("vehicles")
 }
 
 model VehicleVendorRelationship {
-  id              String                     @id @default(uuid())
-  vehicleId       String
-  vendorOrgId     String
-  status          ResourceRelationshipStatus @default(PENDING)
-  ownershipType   String?
-  startsAt        DateTime?
-  endsAt          DateTime?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  id            String                     @id @default(uuid())
+  vehicleId     String
+  vendorOrgId   String
+  status        ResourceRelationshipStatus @default(PENDING)
+  ownershipType String?
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
 
   vehicle   Vehicle      @relation(fields: [vehicleId], references: [id])
   vendorOrg Organisation @relation(fields: [vendorOrgId], references: [id])
@@ -302,6 +311,7 @@ model Guard {
   updatedAt     DateTime @updatedAt
 
   vendorRelationships GuardVendorRelationship[]
+  tripAssignments     TripAssignment[]
 
   @@map("guards")
 }
@@ -335,17 +345,17 @@ enum ResourceType {
 /// from a corporate-vendor OrganisationRelationship — never implicitly
 /// through the vendor relationship alone.
 model CorporateResourceEligibility {
-  id                          String                     @id @default(uuid())
-  corporateOrgId              String
-  vendorOrgId                 String
-  resourceType                ResourceType
-  resourceId                  String
-  organisationRelationshipId  String?
-  status                      ResourceRelationshipStatus @default(PENDING)
-  startsAt                    DateTime?
-  endsAt                      DateTime?
-  createdAt                   DateTime                   @default(now())
-  updatedAt                   DateTime                   @updatedAt
+  id                         String                     @id @default(uuid())
+  corporateOrgId             String
+  vendorOrgId                String
+  resourceType               ResourceType
+  resourceId                 String
+  organisationRelationshipId String?
+  status                     ResourceRelationshipStatus @default(PENDING)
+  startsAt                   DateTime?
+  endsAt                     DateTime?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
 
   corporateOrg Organisation @relation("EligibilityCorporate", fields: [corporateOrgId], references: [id])
 
@@ -378,4 +388,773 @@ model AuditLog {
   @@index([organisationId, createdAt])
   @@index([resourceType, resourceId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Documents & Compliance engine
+// ---------------------------------------------------------------------------
+
+enum ComplianceSubjectType {
+  DRIVER
+  VEHICLE
+  GUARD
+  VENDOR
+}
+
+model Document {
+  id               String                @id @default(uuid())
+  entityType       ComplianceSubjectType
+  entityId         String
+  docType          String
+  issueDate        DateTime?
+  expiryDate       DateTime?
+  fileUrl          String?
+  status           String                @default("PENDING")
+  verifiedByUserId String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+enum ComplianceScope {
+  GLOBAL
+  VENDOR
+  CORPORATE
+  TRIP
+}
+
+enum ComplianceSeverity {
+  WARNING
+  BLOCKING
+}
+
+/// A required-document rule. Scope narrows which vendor/corporate it
+/// applies to; GLOBAL rules apply to every subject of `subjectType`.
+model ComplianceRule {
+  id                 String                @id @default(uuid())
+  scope              ComplianceScope
+  scopeOrgId         String?
+  subjectType        ComplianceSubjectType
+  docType            String
+  maxExpiryGraceDays Int                   @default(0)
+  severity           ComplianceSeverity    @default(BLOCKING)
+  active             Boolean               @default(true)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  evaluations ComplianceEvaluation[]
+
+  @@index([subjectType, scope, scopeOrgId, active])
+  @@map("compliance_rules")
+}
+
+enum ComplianceStatus {
+  PENDING
+  UNDER_REVIEW
+  COMPLIANT
+  EXPIRING
+  NON_COMPLIANT
+  SUSPENDED
+}
+
+/// Persisted outcome of evaluating one subject against one rule, so a
+/// later audit can explain why a resource was or wasn't eligible.
+model ComplianceEvaluation {
+  id          String                @id @default(uuid())
+  subjectType ComplianceSubjectType
+  subjectId   String
+  ruleId      String
+  status      ComplianceStatus
+  evaluatedAt DateTime              @default(now())
+  details     Json?
+
+  rule ComplianceRule @relation(fields: [ruleId], references: [id])
+
+  @@index([subjectType, subjectId, evaluatedAt])
+  @@map("compliance_evaluations")
+}
+
+// ---------------------------------------------------------------------------
+// Contracts, rate cards & SLA
+// ---------------------------------------------------------------------------
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+model Contract {
+  id                         String         @id @default(uuid())
+  corporateOrgId             String
+  vendorOrgId                String
+  organisationRelationshipId String?
+  scopeCities                String[]       @default([])
+  startsAt                   DateTime
+  endsAt                     DateTime?
+  slaTargets                 Json?
+  status                     ContractStatus @default(DRAFT)
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
+
+  rateCards RateCard[]
+
+  @@index([corporateOrgId])
+  @@index([vendorOrgId])
+  @@map("contracts")
+}
+
+/// Rate cards are versioned by effective date range; a new version is a
+/// new row, never an in-place edit of an already-effective card.
+model RateCard {
+  id            String    @id @default(uuid())
+  contractId    String
+  vehicleType   String
+  pricingModel  String
+  pricingRules  Json
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  version       Int       @default(1)
+  createdAt     DateTime  @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([contractId, vehicleType, effectiveFrom])
+  @@map("rate_cards")
+}
+
+// ---------------------------------------------------------------------------
+// Employees, shifts & roster
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id             String   @id @default(uuid())
+  corporateOrgId String
+  employeeCode   String
+  fullName       String
+  /// Self-declared, optional; used only where a corporate's safety policy
+  /// (e.g. last-drop restriction) is explicitly configured to depend on it.
+  gender         String?
+  phone          String
+  email          String?
+  department     String?
+  costCentre     String?
+  homeLatitude   Float?
+  homeLongitude  Float?
+  officeLabel    String?
+  shiftId        String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+  shift        Shift?       @relation(fields: [shiftId], references: [id])
+
+  rosterEntries RosterEntry[]
+  tripEmployees TripEmployee[]
+
+  @@unique([corporateOrgId, employeeCode])
+  @@index([corporateOrgId, status])
+  @@map("employees")
+}
+
+model Shift {
+  id                       String   @id @default(uuid())
+  corporateOrgId           String
+  name                     String
+  startTime                String
+  endTime                  String
+  pickupWindowMinutes      Int      @default(30)
+  cutoffMinutesBeforeStart Int      @default(60)
+  active                   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+
+  employees      Employee[]
+  rosterEntries  RosterEntry[]
+  transportPlans TransportPlan[]
+  trips          Trip[]
+
+  @@index([corporateOrgId, active])
+  @@map("shifts")
+}
+
+enum RosterEntryStatus {
+  OPTED_IN
+  OPTED_OUT
+  CANCELLED
+  PLANNED
+}
+
+model RosterEntry {
+  id         String            @id @default(uuid())
+  employeeId String
+  shiftId    String
+  date       DateTime
+  status     RosterEntryStatus @default(OPTED_IN)
+  source     String            @default("MANUAL")
+  version    Int               @default(1)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  shift    Shift    @relation(fields: [shiftId], references: [id])
+
+  @@unique([employeeId, shiftId, date])
+  @@index([shiftId, date, status])
+  @@map("roster_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Transport planning
+// ---------------------------------------------------------------------------
+
+enum PlanStatus {
+  DRAFT
+  OPTIMIZING
+  VALIDATING
+  EXCEPTIONS
+  READY
+  PUBLISHED
+  SUPERSEDED
+  CANCELLED
+}
+
+/// Never overwrite a published plan: a re-run creates a new version and
+/// the previous one is retained (status SUPERSEDED) for audit.
+model TransportPlan {
+  id               String     @id @default(uuid())
+  corporateOrgId   String
+  shiftId          String
+  planDate         DateTime
+  version          Int        @default(1)
+  status           PlanStatus @default(DRAFT)
+  supersedesPlanId String?
+  metadata         Json?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+  shift        Shift        @relation(fields: [shiftId], references: [id])
+
+  trips      Trip[]
+  exceptions PlanException[]
+
+  @@index([corporateOrgId, shiftId, planDate, version])
+  @@map("transport_plans")
+}
+
+enum ExceptionType {
+  NO_ELIGIBLE_VEHICLE
+  NO_ELIGIBLE_DRIVER
+  NO_GUARD_AVAILABLE
+  CAPACITY_SHORTAGE
+  COMPLIANCE_BLOCK
+  SAFETY_RULE_IMPOSSIBLE
+  MAX_RIDE_TIME_EXCEEDED
+  VENDOR_CAPACITY_EXHAUSTED
+  CONTRACT_RATE_MISSING
+  CONFLICTING_ASSIGNMENT
+}
+
+enum ExceptionStatus {
+  OPEN
+  RESOLVED
+  OVERRIDDEN
+}
+
+model PlanException {
+  id               String          @id @default(uuid())
+  planId           String
+  type             ExceptionType
+  status           ExceptionStatus @default(OPEN)
+  context          Json?
+  resolvedByUserId String?
+  resolutionReason String?
+  createdAt        DateTime        @default(now())
+  resolvedAt       DateTime?
+
+  plan TransportPlan @relation(fields: [planId], references: [id])
+
+  @@index([planId, status])
+  @@map("plan_exceptions")
+}
+
+// ---------------------------------------------------------------------------
+// Trips
+// ---------------------------------------------------------------------------
+
+enum TripStatus {
+  CREATED
+  SCHEDULED
+  RESOURCES_ASSIGNED
+  DRIVER_ACCEPTED
+  EN_ROUTE_TO_FIRST_PICKUP
+  RUNNING
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  BREAKDOWN
+  SOS_ACTIVE
+  PAUSED
+  REASSIGNING
+  FAILED
+}
+
+model Trip {
+  id                  String     @id @default(uuid())
+  globalTripId        String     @unique
+  planId              String?
+  corporateOrgId      String
+  vendorOrgId         String?
+  contractId          String?
+  shiftId             String
+  scheduledStartAt    DateTime
+  scheduledEndAt      DateTime?
+  actualStartAt       DateTime?
+  actualEndAt         DateTime?
+  status              TripStatus @default(CREATED)
+  estimatedDistanceKm Float?
+  actualDistanceKm    Float?
+  version             Int        @default(1)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  plan         TransportPlan? @relation(fields: [planId], references: [id])
+  corporateOrg Organisation   @relation("TripCorporate", fields: [corporateOrgId], references: [id])
+  vendorOrg    Organisation?  @relation("TripVendor", fields: [vendorOrgId], references: [id])
+  shift        Shift          @relation(fields: [shiftId], references: [id])
+
+  stops          TripStop[]
+  employees      TripEmployee[]
+  assignments    TripAssignment[]
+  events         TripEvent[]
+  otpChallenges  OtpChallenge[]
+  locationEvents LocationEvent[]
+  incidents      Incident[]
+  tripCharge     TripCharge?
+
+  @@index([corporateOrgId, status])
+  @@index([vendorOrgId, status])
+  @@index([planId])
+  @@map("trips")
+}
+
+model TripStop {
+  id              String    @id @default(uuid())
+  tripId          String
+  sequence        Int
+  stopType        String
+  latitude        Float
+  longitude       Float
+  plannedEta      DateTime?
+  actualArrivalAt DateTime?
+
+  trip          Trip           @relation(fields: [tripId], references: [id])
+  tripEmployees TripEmployee[] @relation("PickupStop")
+
+  @@unique([tripId, sequence])
+  @@map("trip_stops")
+}
+
+enum TripEmployeeStatus {
+  PLANNED
+  NOTIFIED
+  VEHICLE_ARRIVING
+  PICKUP_VERIFIED
+  ONBOARD
+  DROP_VERIFIED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  MISSED
+  OVERRIDDEN
+}
+
+model TripEmployee {
+  id               String             @id @default(uuid())
+  tripId           String
+  employeeId       String
+  pickupStopId     String?
+  status           TripEmployeeStatus @default(PLANNED)
+  pickupVerifiedAt DateTime?
+  dropVerifiedAt   DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  trip       Trip      @relation(fields: [tripId], references: [id])
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  pickupStop TripStop? @relation("PickupStop", fields: [pickupStopId], references: [id])
+
+  otpChallenges OtpChallenge[]
+
+  @@unique([tripId, employeeId])
+  @@index([employeeId, status])
+  @@map("trip_employees")
+}
+
+enum AssignmentSource {
+  AUTO
+  MANUAL
+  REPLACEMENT
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  SUPERSEDED
+  CANCELLED
+}
+
+model TripAssignment {
+  id             String           @id @default(uuid())
+  tripId         String
+  driverId       String?
+  vehicleId      String?
+  guardId        String?
+  status         AssignmentStatus @default(ACTIVE)
+  source         AssignmentSource @default(AUTO)
+  overrideReason String?
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  trip    Trip     @relation(fields: [tripId], references: [id])
+  driver  Driver?  @relation(fields: [driverId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+  guard   Guard?   @relation(fields: [guardId], references: [id])
+
+  @@index([tripId, status])
+  @@index([driverId, status])
+  @@index([vehicleId, status])
+  @@index([guardId, status])
+  @@map("trip_assignments")
+}
+
+model TripEvent {
+  id          String   @id @default(uuid())
+  tripId      String
+  type        String
+  actorUserId String?
+  location    Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id])
+
+  @@index([tripId, createdAt])
+  @@map("trip_events")
+}
+
+// ---------------------------------------------------------------------------
+// Safety policy engine
+// ---------------------------------------------------------------------------
+
+enum SafetyRuleType {
+  LAST_DROP_RESTRICTION
+  GUARD_REQUIRED
+  MAX_RIDE_TIME
+  ROUTE_DEVIATION_THRESHOLD
+  UNEXPECTED_STOP
+  GPS_LOSS
+  OVERSPEED
+}
+
+model SafetyPolicy {
+  id             String   @id @default(uuid())
+  corporateOrgId String
+  name           String
+  version        Int      @default(1)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+  rules        SafetyRule[]
+
+  @@index([corporateOrgId, active])
+  @@map("safety_policies")
+}
+
+/// `config` holds the rule's tunable parameters (e.g. { "afterHour": 20,
+/// "appliesToGender": "FEMALE" }) so a rule type stays generic across
+/// corporates with different policies.
+model SafetyRule {
+  id        String         @id @default(uuid())
+  policyId  String
+  type      SafetyRuleType
+  config    Json
+  mandatory Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  policy SafetyPolicy @relation(fields: [policyId], references: [id])
+
+  @@index([policyId, type])
+  @@map("safety_rules")
+}
+
+/// Every safety evaluation is stored with the policy version and input
+/// context it ran against, so a later audit can explain why a route was
+/// accepted or rejected.
+model SafetyEvent {
+  id            String   @id @default(uuid())
+  tripId        String?
+  type          String
+  severity      String
+  status        String   @default("OPEN")
+  policyVersion Int?
+  inputContext  Json?
+  outcome       String?
+  createdAt     DateTime @default(now())
+
+  @@index([tripId])
+  @@map("safety_events")
+}
+
+// ---------------------------------------------------------------------------
+// OTP & proof-of-service
+// ---------------------------------------------------------------------------
+
+enum OtpPurpose {
+  PICKUP
+  DROP
+}
+
+enum OtpStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  LOCKED
+  OVERRIDDEN
+}
+
+/// Pickup and drop OTPs are always distinct challenges bound to trip +
+/// employee + purpose + validity window; only a hash is stored, never the
+/// plaintext code.
+model OtpChallenge {
+  id               String     @id @default(uuid())
+  tripId           String
+  tripEmployeeId   String
+  purpose          OtpPurpose
+  codeHash         String
+  expiresAt        DateTime
+  attempts         Int        @default(0)
+  maxAttempts      Int        @default(5)
+  status           OtpStatus  @default(PENDING)
+  verifiedAt       DateTime?
+  verifiedByUserId String?
+  overrideReason   String?
+  createdAt        DateTime   @default(now())
+
+  trip         Trip         @relation(fields: [tripId], references: [id])
+  tripEmployee TripEmployee @relation(fields: [tripEmployeeId], references: [id])
+
+  @@index([tripEmployeeId, purpose, status])
+  @@map("otp_challenges")
+}
+
+// ---------------------------------------------------------------------------
+// GPS / tracking / geofence
+// ---------------------------------------------------------------------------
+
+model LocationEvent {
+  id         String   @id @default(uuid())
+  tripId     String?
+  driverId   String?
+  vehicleId  String?
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  speed      Float?
+  source     String   @default("DRIVER_APP")
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  trip Trip? @relation(fields: [tripId], references: [id])
+
+  @@index([tripId, recordedAt])
+  @@index([vehicleId, recordedAt])
+  @@map("location_events")
+}
+
+model Geofence {
+  id              String   @id @default(uuid())
+  name            String
+  type            String
+  centerLatitude  Float
+  centerLongitude Float
+  radiusMeters    Int
+  corporateOrgId  String?
+  createdAt       DateTime @default(now())
+
+  @@index([corporateOrgId, type])
+  @@map("geofences")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+model Notification {
+  id              String              @id @default(uuid())
+  recipientUserId String?
+  recipientType   String
+  recipientId     String?
+  channel         NotificationChannel
+  templateKey     String
+  payload         Json?
+  status          NotificationStatus  @default(QUEUED)
+  event           String
+  tripId          String?
+  createdAt       DateTime            @default(now())
+  sentAt          DateTime?
+
+  @@index([recipientId, status])
+  @@index([tripId])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Incidents / SOS
+// ---------------------------------------------------------------------------
+
+enum IncidentCategory {
+  ACCIDENT
+  SOS
+  BREAKDOWN
+  MISCONDUCT
+  COMPLAINT
+  ROUTE_DEVIATION
+  VEHICLE_ISSUE
+  SAFETY_VIOLATION
+  NO_SHOW
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  ACTION_TAKEN
+  CLOSED
+}
+
+model Incident {
+  id               String           @id @default(uuid())
+  tripId           String?
+  category         IncidentCategory
+  severity         IncidentSeverity @default(MEDIUM)
+  status           IncidentStatus   @default(OPEN)
+  reportedByUserId String?
+  description      String?
+  location         Json?
+  correctiveAction String?
+  closedByUserId   String?
+  closedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  trip Trip? @relation(fields: [tripId], references: [id])
+
+  @@index([tripId])
+  @@index([status])
+  @@map("incidents")
+}
+
+// ---------------------------------------------------------------------------
+// Billing & invoice reconciliation
+// ---------------------------------------------------------------------------
+
+model TripCharge {
+  id              String   @id @default(uuid())
+  tripId          String   @unique
+  rateCardId      String?
+  pricingInputs   Json?
+  corporateCharge Decimal  @db.Decimal(12, 2)
+  vendorPayable   Decimal  @db.Decimal(12, 2)
+  taxes           Decimal  @default(0) @db.Decimal(12, 2)
+  penalties       Decimal  @default(0) @db.Decimal(12, 2)
+  adjustments     Decimal  @default(0) @db.Decimal(12, 2)
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id])
+
+  @@map("trip_charges")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  DISPUTED
+  PAID
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  vendorOrgId    String
+  corporateOrgId String
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         InvoiceStatus @default(DRAFT)
+  claimedTotal   Decimal?      @db.Decimal(14, 2)
+  validatedTotal Decimal?      @db.Decimal(14, 2)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  lines InvoiceLine[]
+
+  @@index([vendorOrgId, status])
+  @@index([corporateOrgId, status])
+  @@map("invoices")
+}
+
+enum InvoiceLineStatus {
+  PENDING
+  MATCHED
+  VARIANCE
+  DISPUTED
+  APPROVED
+}
+
+model InvoiceLine {
+  id             String            @id @default(uuid())
+  invoiceId      String
+  tripId         String?
+  claimedAmount  Decimal           @db.Decimal(12, 2)
+  approvedAmount Decimal?          @db.Decimal(12, 2)
+  varianceAmount Decimal?          @db.Decimal(12, 2)
+  status         InvoiceLineStatus @default(PENDING)
+  disputeReason  String?
+  createdAt      DateTime          @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
 }

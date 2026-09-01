@@ -12,6 +12,19 @@ import { AuthzModule } from "./authz/authz.module";
 import { DriverModule } from "./driver/driver.module";
 import { VehicleModule } from "./vehicle/vehicle.module";
 import { GuardModule } from "./guard/guard.module";
+import { ComplianceModule } from "./compliance/compliance.module";
+import { ContractModule } from "./contract/contract.module";
+import { EmployeeModule } from "./employee/employee.module";
+import { RosterModule } from "./roster/roster.module";
+import { TripModule } from "./trip/trip.module";
+import { SafetyModule } from "./safety/safety.module";
+import { OtpModule } from "./otp/otp.module";
+import { TrackingModule } from "./tracking/tracking.module";
+import { NotificationModule } from "./notification/notification.module";
+import { IncidentModule } from "./incident/incident.module";
+import { BillingModule } from "./billing/billing.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
+import { PlanningModule } from "./planning/planning.module";
 
 @Module({
   imports: [
@@ -26,6 +39,19 @@ import { GuardModule } from "./guard/guard.module";
     DriverModule,
     VehicleModule,
     GuardModule,
+    ComplianceModule,
+    ContractModule,
+    EmployeeModule,
+    RosterModule,
+    TripModule,
+    SafetyModule,
+    OtpModule,
+    TrackingModule,
+    NotificationModule,
+    IncidentModule,
+    BillingModule,
+    AnalyticsModule,
+    PlanningModule,
   ],
   providers: [
     {
