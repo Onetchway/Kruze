@@ -68,7 +68,6 @@ environment, so what was verified against the real running API:
 
 ## Not yet built
 
-Guard app would follow the same pattern (`PlatformRole.GUARD` exists,
-and `Guard` could gain a `userId` link the same way `Driver` now has)
-— not built in this pass; employee-app and driver-app are meant to
-establish the pattern, not be triplicated.
+`apps/guard-app` now follows the same pattern (`Guard.userId` links to
+`User` the same way `Driver.userId` does), completing the
+employee/driver/guard mobility-worker app trio.

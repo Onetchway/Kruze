@@ -6,6 +6,7 @@ packages:
   # their node_modules/lockfile.
   - "!apps/employee-app"
   - "!apps/driver-app"
+  - "!apps/guard-app"
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

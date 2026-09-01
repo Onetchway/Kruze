@@ -40,6 +40,7 @@ model User {
   relationshipsApproved OrganisationRelationship[] @relation("RelationshipApprovedBy")
   employeeProfile       Employee?
   driverProfile         Driver?
+  guardProfile          Guard?
 
   @@map("users")
 }
@@ -426,9 +427,11 @@ model Guard {
   fullName      String
   phone         String   @unique
   status        String   @default("ACTIVE")
+  userId        String?  @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  user                User?                      @relation(fields: [userId], references: [id])
   vendorRelationships GuardVendorRelationship[]
   tripAssignments     TripAssignment[]
 
