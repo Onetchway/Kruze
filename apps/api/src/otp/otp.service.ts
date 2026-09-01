@@ -63,6 +63,33 @@ export class OtpService {
     return { otpChallengeId: challenge.id, code, expiresAt: challenge.expiresAt };
   }
 
+  /**
+   * Lets a party to the trip (chiefly the driver, who does not generate the
+   * challenge and so never sees its id in the generate response) look up
+   * the id of the currently pending challenge for a passenger, without
+   * exposing the code itself.
+   */
+  async findPending(actor: AuthenticatedUser, tripEmployeeId: string, purpose: OtpPurpose) {
+    const tripEmployee = await this.prisma.tripEmployee.findUnique({
+      where: { id: tripEmployeeId },
+      include: { trip: true },
+    });
+    if (!tripEmployee) {
+      throw new NotFoundException("Trip employee not found");
+    }
+    if (tripEmployee.trip.corporateOrgId !== actor.organisationId && tripEmployee.trip.vendorOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Not a party to this trip");
+    }
+    const challenge = await this.prisma.otpChallenge.findFirst({
+      where: { tripEmployeeId, purpose, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!challenge) {
+      throw new NotFoundException("No pending OTP for this passenger");
+    }
+    return { otpChallengeId: challenge.id, expiresAt: challenge.expiresAt };
+  }
+
   async verify(actor: AuthenticatedUser, otpChallengeId: string, code: string, location?: { latitude: number; longitude: number }) {
     return this.prisma.$transaction(async (tx) => {
       const challenge = await tx.otpChallenge.findUnique({

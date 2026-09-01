@@ -5,6 +5,7 @@ packages:
   # excluded from this workspace so `pnpm install` at the root never touches
   # their node_modules/lockfile.
   - "!apps/employee-app"
+  - "!apps/driver-app"
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

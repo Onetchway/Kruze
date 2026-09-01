@@ -1,9 +1,10 @@
-import { Body, Controller, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { OtpService } from "./otp.service";
 import { GenerateOtpDto } from "./dto/generate-otp.dto";
 import { VerifyOtpDto } from "./dto/verify-otp.dto";
 import { OverrideOtpDto } from "./dto/override-otp.dto";
+import { FindPendingOtpDto } from "./dto/find-pending-otp.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AuthenticatedUser } from "../common/request-context";
@@ -18,6 +19,11 @@ export class OtpController {
   @Audited({ action: "OTP_GENERATED", resourceType: "OtpChallenge" })
   generate(@CurrentUser() user: AuthenticatedUser, @Body() dto: GenerateOtpDto) {
     return this.otp.generate(user, dto);
+  }
+
+  @Get("otp-challenges/pending")
+  findPending(@CurrentUser() user: AuthenticatedUser, @Query() query: FindPendingOtpDto) {
+    return this.otp.findPending(user, query.tripEmployeeId, query.purpose);
   }
 
   @Post("otp-challenges/:id/verify")

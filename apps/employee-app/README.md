@@ -63,8 +63,9 @@ simulator pass before shipping.
 
 ## Not yet built
 
-Driver and Guard apps would follow the same pattern (same backend
-shape — `PlatformRole.DRIVER`/`GUARD` exist, but nothing currently
-links a `Driver`/`Guard` record to a `User` the way `Employee.userId`
-now does) — not built in this pass due to time; employee-app is meant
-to establish the pattern once, not be duplicated three times over.
+`apps/driver-app` now follows the same pattern (`Driver.userId` links
+to `User` the same way `Employee.userId` does). A Guard app would
+follow the same pattern too (`PlatformRole.GUARD` exists, but nothing
+currently links a `Guard` record to a `User`) — not built in this
+pass; these two apps are meant to establish the pattern, not be
+triplicated.

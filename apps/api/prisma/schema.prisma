@@ -39,6 +39,7 @@ model User {
   relationshipsInvited  OrganisationRelationship[] @relation("RelationshipCreatedBy")
   relationshipsApproved OrganisationRelationship[] @relation("RelationshipApprovedBy")
   employeeProfile       Employee?
+  driverProfile         Driver?
 
   @@map("users")
 }
@@ -270,9 +271,11 @@ model Driver {
   phone          String   @unique
   licenceNumber  String?
   status         String   @default("ACTIVE")
+  userId         String?  @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  user                User?                       @relation(fields: [userId], references: [id])
   vendorRelationships DriverVendorRelationship[]
   tripAssignments     TripAssignment[]
   paymentVouchers     DriverPaymentVoucher[]
