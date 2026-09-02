@@ -217,7 +217,8 @@ export const api = {
   reactivateOrganisation: (token: string, id: string) =>
     apiFetch<Organisation>(`/organisations/${id}/reactivate`, { method: "POST", token }),
 
-  listRelationships: (token: string) => apiFetch<OrganisationRelationshipRow[]>("/organisation-relationships", { token }),
+  getOrganisationRelationships: (token: string, id: string) =>
+    apiFetch<OrganisationRelationshipRow[]>(`/organisations/${id}/relationships`, { token }),
 
   getDashboard: (token: string) => apiFetch<PlatformDashboardOverview>("/platform/dashboard", { token }),
 

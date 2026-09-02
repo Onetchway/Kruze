@@ -91,6 +91,13 @@ export class OrganisationController {
     return this.organisations.listUsers(id);
   }
 
+  @Get(":id/relationships")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SUPER_ADMIN_ROLES)
+  relationships(@Param("id") id: string) {
+    return this.organisations.listRelationships(id);
+  }
+
   @Post(":id/suspend")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...TENANT_MANAGEMENT_ROLES)

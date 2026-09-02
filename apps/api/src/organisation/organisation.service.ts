@@ -120,6 +120,18 @@ export class OrganisationService {
     };
   }
 
+  async listRelationships(organisationId: string) {
+    await this.getOrThrow(organisationId);
+    return this.prisma.organisationRelationship.findMany({
+      where: { OR: [{ sourceOrgId: organisationId }, { targetOrgId: organisationId }] },
+      orderBy: { createdAt: "desc" },
+      include: {
+        sourceOrg: { select: { id: true, globalOrgId: true, displayName: true, roles: true } },
+        targetOrg: { select: { id: true, globalOrgId: true, displayName: true, roles: true } },
+      },
+    });
+  }
+
   async listUsers(organisationId: string) {
     await this.getOrThrow(organisationId);
     const memberships = await this.prisma.organisationMembership.findMany({

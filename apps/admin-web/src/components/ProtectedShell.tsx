@@ -7,8 +7,13 @@ import { useAuth } from "@/lib/auth";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/organisations", label: "Organisations" },
+  { href: "/users", label: "Users" },
   { href: "/plans", label: "Plans" },
   { href: "/subscriptions", label: "Subscriptions" },
+  { href: "/audit-log", label: "Audit Log" },
+  { href: "/security", label: "Security" },
+  { href: "/system-health", label: "System Health" },
+  { href: "/roles", label: "Roles" },
 ];
 
 export function ProtectedShell({ children }: { children: React.ReactNode }) {
@@ -32,7 +37,11 @@ export function ProtectedShell({ children }: { children: React.ReactNode }) {
         <h1>Kruze Admin</h1>
         <nav>
           {NAV_ITEMS.map((item) => (
-            <a key={item.href} href={item.href} style={pathname === item.href ? { background: "var(--bg)" } : undefined}>
+            <a
+              key={item.href}
+              href={item.href}
+              style={pathname === item.href || pathname.startsWith(`${item.href}/`) ? { background: "var(--bg)" } : undefined}
+            >
               {item.label}
             </a>
           ))}
