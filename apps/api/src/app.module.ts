@@ -36,6 +36,7 @@ import { ZoneModule } from "./zone/zone.module";
 import { DriverPaymentModule } from "./driver-payment/driver-payment.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { KafkaModule } from "./eventbus/kafka.module";
+import { PlatformAdminModule } from "./platform-admin/platform-admin.module";
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { KafkaModule } from "./eventbus/kafka.module";
     LocationModule,
     ZoneModule,
     DriverPaymentModule,
+    PlatformAdminModule,
   ],
   providers: [
     {

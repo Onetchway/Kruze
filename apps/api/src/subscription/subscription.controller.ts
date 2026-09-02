@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
-import { PlatformRole } from "@kruze/domain";
+import { BILLING_ROLES } from "@kruze/domain";
 import { SubscriptionService } from "./subscription.service";
 import { CreatePlanDto } from "./dto/create-plan.dto";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import { RecordUsageDto } from "./dto/record-usage.dto";
+import { ExtendTrialDto } from "./dto/extend-trial.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../authz/roles.guard";
 import { Roles } from "../authz/roles.decorator";
@@ -11,7 +12,7 @@ import { Audited } from "../audit/audited.decorator";
 
 @Controller("subscription-plans")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PlatformRole.KRUZE_SUPER_ADMIN)
+@Roles(...BILLING_ROLES)
 export class SubscriptionPlanController {
   constructor(private readonly subscriptions: SubscriptionService) {}
 
@@ -29,7 +30,7 @@ export class SubscriptionPlanController {
 
 @Controller("subscriptions")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PlatformRole.KRUZE_SUPER_ADMIN)
+@Roles(...BILLING_ROLES)
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}
 
@@ -55,6 +56,18 @@ export class SubscriptionController {
   @Audited({ action: "SUBSCRIPTION_CANCELLED", resourceType: "Subscription" })
   cancel(@Param("organisationId") organisationId: string) {
     return this.subscriptions.cancel(organisationId);
+  }
+
+  @Post("organisations/:organisationId/resume")
+  @Audited({ action: "SUBSCRIPTION_RESUMED", resourceType: "Subscription" })
+  resume(@Param("organisationId") organisationId: string) {
+    return this.subscriptions.resume(organisationId);
+  }
+
+  @Post("organisations/:organisationId/extend-trial")
+  @Audited({ action: "SUBSCRIPTION_TRIAL_EXTENDED", resourceType: "Subscription" })
+  extendTrial(@Param("organisationId") organisationId: string, @Body() dto: ExtendTrialDto) {
+    return this.subscriptions.extendTrial(organisationId, dto.days);
   }
 
   @Get("organisations/:organisationId")

@@ -37,6 +37,27 @@ export class SubscriptionService {
     return this.prisma.subscription.update({ where: { organisationId }, data: { status: "ACTIVE" } });
   }
 
+  /** Suspend actions are reversible without re-subscribing — resume just flips status back to ACTIVE. */
+  resume(organisationId: string) {
+    return this.prisma.subscription.update({ where: { organisationId }, data: { status: "ACTIVE" } });
+  }
+
+  async extendTrial(organisationId: string, days: number) {
+    if (days <= 0) {
+      throw new BadRequestException("days must be positive");
+    }
+    const subscription = await this.prisma.subscription.findUnique({ where: { organisationId } });
+    if (!subscription) {
+      throw new NotFoundException("Organisation has no subscription");
+    }
+    const base = subscription.trialEndsAt && subscription.trialEndsAt > new Date() ? subscription.trialEndsAt : new Date();
+    const trialEndsAt = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    return this.prisma.subscription.update({
+      where: { organisationId },
+      data: { status: "TRIAL", trialEndsAt },
+    });
+  }
+
   suspend(organisationId: string) {
     return this.prisma.subscription.update({ where: { organisationId }, data: { status: "SUSPENDED" } });
   }
