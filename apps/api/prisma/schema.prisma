@@ -220,20 +220,36 @@ model Corporate {
 
 /// A corporate's named office/depot/drop location, distinct from an
 /// employee's individually chosen pickup point.
-model Location {
-  id             String   @id @default(uuid())
-  corporateOrgId String
-  name           String
-  code           String
-  address        String?
-  city           String?
-  latitude       Float?
-  longitude      Float?
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+enum LocationType {
+  OFFICE
+  CAMPUS
+  PARKING
+  DEPOT
+}
 
-  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+enum PickupPointType {
+  METRO
+  SAFE_ZONE
+  OTHER
+}
+
+model Location {
+  id              String           @id @default(uuid())
+  corporateOrgId  String
+  name            String
+  code            String
+  address         String?
+  city            String?
+  latitude        Float?
+  longitude       Float?
+  status          String           @default("ACTIVE")
+  type            LocationType     @default(OFFICE)
+  pickupPointType PickupPointType?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organisation      Organisation @relation(fields: [corporateOrgId], references: [id])
+  employeesPickupAt Employee[]   @relation("EmployeePickupLocation")
 
   @@unique([corporateOrgId, code])
   @@index([corporateOrgId, status])
@@ -279,7 +295,7 @@ model Driver {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user                User?                       @relation(fields: [userId], references: [id])
+  user                User?                      @relation(fields: [userId], references: [id])
   vendorRelationships DriverVendorRelationship[]
   tripAssignments     TripAssignment[]
   paymentVouchers     DriverPaymentVoucher[]
@@ -434,7 +450,7 @@ model Guard {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user                User?                      @relation(fields: [userId], references: [id])
+  user                User?                     @relation(fields: [userId], references: [id])
   vendorRelationships GuardVendorRelationship[]
   tripAssignments     TripAssignment[]
 
@@ -700,34 +716,47 @@ model Zone {
 // ---------------------------------------------------------------------------
 
 model Employee {
-  id             String   @id @default(uuid())
-  corporateOrgId String
+  id                    String   @id @default(uuid())
+  corporateOrgId        String
   /// Links this employee record to its login account, set at self-signup.
   /// The account can authenticate immediately, but only gains an
   /// EMPLOYEE-role OrganisationMembership (and therefore an actual
   /// session) once the corporate approves the signup — see
   /// employee.service.ts.
-  userId         String?  @unique
-  employeeCode   String
-  fullName       String
+  userId                String?  @unique
+  employeeCode          String
+  fullName              String
   /// Self-declared, optional; used only where a corporate's safety policy
   /// (e.g. last-drop restriction) is explicitly configured to depend on it.
-  gender         String?
-  phone          String
-  email          String?
-  department     String?
-  costCentre     String?
-  homeLatitude   Float?
-  homeLongitude  Float?
-  officeLabel    String?
-  shiftId        String?
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  gender                String?
+  phone                 String
+  email                 String?
+  department            String?
+  costCentre            String?
+  homeLatitude          Float?
+  homeLongitude         Float?
+  officeLabel           String?
+  shiftId               String?
+  status                String   @default("ACTIVE")
+  /// Transport eligibility (distance/zone/policy-driven) — distinct from
+  /// `status`, which governs whether the account itself is active. An
+  /// employee can be ACTIVE but not transportEligible (e.g. lives inside
+  /// the no-transport radius), and eligibility is approved separately from
+  /// enabling/disabling the account (see EmployeeController#approveTransport).
+  transportEligible     Boolean  @default(true)
+  eligibilityReason     String?
+  pickupLocationId      String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  /// Free-form flags, e.g. "WHEELCHAIR_ACCESS", "NIGHT_SHIFT_ESCORT".
+  specialRequirements   String[] @default([])
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
-  shift        Shift?       @relation(fields: [shiftId], references: [id])
-  user         User?        @relation(fields: [userId], references: [id])
+  organisation   Organisation @relation(fields: [corporateOrgId], references: [id])
+  shift          Shift?       @relation(fields: [shiftId], references: [id])
+  user           User?        @relation(fields: [userId], references: [id])
+  pickupLocation Location?    @relation("EmployeePickupLocation", fields: [pickupLocationId], references: [id])
 
   rosterEntries RosterEntry[]
   tripEmployees TripEmployee[]
@@ -746,10 +775,17 @@ model Shift {
   pickupWindowMinutes      Int      @default(30)
   cutoffMinutesBeforeStart Int      @default(60)
   active                   Boolean  @default(true)
+  /// Per-shift override of the corporate-level Transport Policy's default
+  /// max ride time; null means "use the corporate default".
+  maxRideTimeMinutes       Int?
+  transportRequired        Boolean  @default(true)
+  nightShift               Boolean  @default(false)
+  safetyPolicyId           String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  organisation Organisation @relation(fields: [corporateOrgId], references: [id])
+  organisation Organisation  @relation(fields: [corporateOrgId], references: [id])
+  safetyPolicy SafetyPolicy? @relation(fields: [safetyPolicyId], references: [id])
 
   employees      Employee[]
   rosterEntries  RosterEntry[]
@@ -767,16 +803,23 @@ enum RosterEntryStatus {
   PLANNED
 }
 
+enum RosterPublishStatus {
+  DRAFT
+  PUBLISHED
+  LOCKED
+}
+
 model RosterEntry {
-  id         String            @id @default(uuid())
-  employeeId String
-  shiftId    String
-  date       DateTime
-  status     RosterEntryStatus @default(OPTED_IN)
-  source     String            @default("MANUAL")
-  version    Int               @default(1)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id            String              @id @default(uuid())
+  employeeId    String
+  shiftId       String
+  date          DateTime
+  status        RosterEntryStatus   @default(OPTED_IN)
+  publishStatus RosterPublishStatus @default(DRAFT)
+  source        String              @default("MANUAL")
+  version       Int                 @default(1)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   employee Employee @relation(fields: [employeeId], references: [id])
   shift    Shift    @relation(fields: [shiftId], references: [id])
@@ -882,24 +925,35 @@ enum TripStatus {
   FAILED
 }
 
+enum RouteAcceptanceStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model Trip {
-  id                  String     @id @default(uuid())
-  globalTripId        String     @unique
-  planId              String?
-  corporateOrgId      String
-  vendorOrgId         String?
-  contractId          String?
-  shiftId             String
-  scheduledStartAt    DateTime
-  scheduledEndAt      DateTime?
-  actualStartAt       DateTime?
-  actualEndAt         DateTime?
-  status              TripStatus @default(CREATED)
-  estimatedDistanceKm Float?
-  actualDistanceKm    Float?
-  version             Int        @default(1)
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  id                      String                @id @default(uuid())
+  globalTripId            String                @unique
+  planId                  String?
+  corporateOrgId          String
+  vendorOrgId             String?
+  contractId              String?
+  shiftId                 String
+  scheduledStartAt        DateTime
+  scheduledEndAt          DateTime?
+  actualStartAt           DateTime?
+  actualEndAt             DateTime?
+  status                  TripStatus            @default(CREATED)
+  estimatedDistanceKm     Float?
+  actualDistanceKm        Float?
+  version                 Int                   @default(1)
+  /// Vendor/dispatcher acknowledgement of the route (spec: Accept / Reject
+  /// / Request-Reoptimization actions on the Routes screen). Independent of
+  /// TripStatus — a trip can be SCHEDULED and still awaiting acceptance.
+  routeAcceptanceStatus   RouteAcceptanceStatus @default(PENDING)
+  reoptimizationRequested Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
   plan         TransportPlan? @relation(fields: [planId], references: [id])
   corporateOrg Organisation   @relation("TripCorporate", fields: [corporateOrgId], references: [id])
@@ -1051,6 +1105,7 @@ model SafetyPolicy {
 
   organisation Organisation @relation(fields: [corporateOrgId], references: [id])
   rules        SafetyRule[]
+  shifts       Shift[]
 
   @@index([corporateOrgId, active])
   @@map("safety_policies")
@@ -1317,17 +1372,25 @@ enum InvoiceStatus {
   PAID
 }
 
+enum InvoicePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
 model Invoice {
-  id             String        @id @default(uuid())
+  id             String               @id @default(uuid())
   vendorOrgId    String
   corporateOrgId String
   periodStart    DateTime
   periodEnd      DateTime
-  status         InvoiceStatus @default(DRAFT)
-  claimedTotal   Decimal?      @db.Decimal(14, 2)
-  validatedTotal Decimal?      @db.Decimal(14, 2)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  status         InvoiceStatus        @default(DRAFT)
+  claimedTotal   Decimal?             @db.Decimal(14, 2)
+  validatedTotal Decimal?             @db.Decimal(14, 2)
+  paymentStatus  InvoicePaymentStatus @default(UNPAID)
+  paidAmount     Decimal?             @db.Decimal(14, 2)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   lines InvoiceLine[]
 
