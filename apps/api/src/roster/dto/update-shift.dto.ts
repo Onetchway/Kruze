@@ -1,15 +1,17 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min, MinLength } from "class-validator";
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from "class-validator";
 
-export class CreateShiftDto {
+export class UpdateShiftDto {
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  name!: string;
+  name?: string;
 
+  @IsOptional()
   @IsString()
-  startTime!: string;
+  startTime?: string;
 
+  @IsOptional()
   @IsString()
-  endTime!: string;
+  endTime?: string;
 
   @IsOptional()
   @IsInt()
@@ -37,4 +39,8 @@ export class CreateShiftDto {
   @IsOptional()
   @IsString()
   safetyPolicyId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }

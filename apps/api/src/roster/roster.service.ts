@@ -41,6 +41,8 @@ export class RosterService {
       }
     }
 
+    await this.assertNotLocked(input.shiftId, input.date);
+
     return this.prisma.rosterEntry.upsert({
       where: { employeeId_shiftId_date: { employeeId: input.employeeId, shiftId: input.shiftId, date: new Date(input.date) } },
       create: {
@@ -170,10 +172,115 @@ export class RosterService {
     if (entry.employee.corporateOrgId !== actor.organisationId) {
       throw new ForbiddenException("Roster entry belongs to a different corporate");
     }
+    if (entry.publishStatus === "LOCKED") {
+      throw new BadRequestException("This roster is locked and is read-only");
+    }
     return this.prisma.rosterEntry.update({
       where: { id: rosterEntryId },
       data: { status: "CANCELLED", version: { increment: 1 } },
     });
+  }
+
+  private async assertNotLocked(shiftId: string, date: string) {
+    const locked = await this.prisma.rosterEntry.findFirst({
+      where: { shiftId, date: new Date(date), publishStatus: "LOCKED" },
+    });
+    if (locked) {
+      throw new BadRequestException("This roster is locked and is read-only");
+    }
+  }
+
+  /**
+   * Bulk CSV/Excel upload: rows are parsed client-side (employeeCode,
+   * shiftId, date) and posted here — reuses the same upsert semantics as
+   * the manual roster builder, matching employees by employeeCode within
+   * the caller's corporate.
+   */
+  async bulkUpload(actor: AuthenticatedUser, rows: { employeeCode: string; shiftId: string; date: string }[]) {
+    const employeeCodes = Array.from(new Set(rows.map((r) => r.employeeCode)));
+    const employees = await this.prisma.employee.findMany({
+      where: { corporateOrgId: actor.organisationId, employeeCode: { in: employeeCodes } },
+    });
+    const byCode = new Map(employees.map((e) => [e.employeeCode, e]));
+
+    const results: { row: { employeeCode: string; shiftId: string; date: string }; status: string; error?: string }[] = [];
+    for (const row of rows) {
+      const employee = byCode.get(row.employeeCode);
+      if (!employee) {
+        results.push({ row, status: "SKIPPED", error: "No matching employee for this code" });
+        continue;
+      }
+      try {
+        await this.assertNotLocked(row.shiftId, row.date);
+        await this.prisma.rosterEntry.upsert({
+          where: { employeeId_shiftId_date: { employeeId: employee.id, shiftId: row.shiftId, date: new Date(row.date) } },
+          create: { employeeId: employee.id, shiftId: row.shiftId, date: new Date(row.date), status: "OPTED_IN", source: "FILE_UPLOAD" },
+          update: { status: "OPTED_IN", source: "FILE_UPLOAD", version: { increment: 1 } },
+        });
+        results.push({ row, status: "OK" });
+      } catch (err) {
+        results.push({ row, status: "FAILED", error: err instanceof Error ? err.message : "Unknown error" });
+      }
+    }
+    return { total: rows.length, succeeded: results.filter((r) => r.status === "OK").length, results };
+  }
+
+  /**
+   * Roster every active employee who has a default shift assigned, across
+   * a date range — a real, cheap "auto-generate" using each employee's own
+   * default shift as the source pattern (no HRMS/solver integration).
+   */
+  async autoGenerate(actor: AuthenticatedUser, input: { from: string; to: string; weekdaysOnly?: boolean }) {
+    const employees = await this.prisma.employee.findMany({
+      where: { corporateOrgId: actor.organisationId, status: "ACTIVE", shiftId: { not: null } },
+    });
+    if (employees.length === 0) {
+      return { total: 0, created: 0 };
+    }
+
+    const dates: string[] = [];
+    let cursor = new Date(input.from);
+    const end = new Date(input.to);
+    while (cursor <= end) {
+      const day = cursor.getUTCDay();
+      if (!input.weekdaysOnly || (day !== 0 && day !== 6)) {
+        dates.push(cursor.toISOString().slice(0, 10));
+      }
+      cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    const lockedRows = await this.prisma.rosterEntry.findMany({
+      where: { shiftId: { in: employees.map((e) => e.shiftId as string) }, date: { in: dates.map((d) => new Date(d)) }, publishStatus: "LOCKED" },
+      select: { shiftId: true, date: true },
+    });
+    const lockedKeys = new Set(lockedRows.map((r) => `${r.shiftId}|${r.date.toISOString().slice(0, 10)}`));
+
+    let created = 0;
+    for (const employee of employees) {
+      for (const date of dates) {
+        if (lockedKeys.has(`${employee.shiftId}|${date}`)) continue;
+        await this.prisma.rosterEntry.upsert({
+          where: { employeeId_shiftId_date: { employeeId: employee.id, shiftId: employee.shiftId as string, date: new Date(date) } },
+          create: { employeeId: employee.id, shiftId: employee.shiftId as string, date: new Date(date), status: "OPTED_IN", source: "AUTO_GENERATED" },
+          update: { status: "OPTED_IN", version: { increment: 1 } },
+        });
+        created += 1;
+      }
+    }
+    return { total: employees.length * dates.length, created };
+  }
+
+  /** Bulk publish/lock transition for every roster entry on a shift/date — locked entries become read-only. */
+  async setPublishStatus(actor: AuthenticatedUser, input: { shiftId: string; date: string; publishStatus: "DRAFT" | "PUBLISHED" | "LOCKED" }) {
+    const shift = await this.prisma.shift.findUnique({ where: { id: input.shiftId } });
+    if (!shift || shift.corporateOrgId !== actor.organisationId) {
+      throw new NotFoundException("Shift not found in this corporate");
+    }
+    const result = await this.prisma.rosterEntry.updateMany({
+      where: { shiftId: input.shiftId, date: new Date(input.date) },
+      data: { publishStatus: input.publishStatus },
+    });
+    return { updated: result.count, publishStatus: input.publishStatus };
   }
 
   /** Transport demand for a shift/date: every OPTED_IN (not later cancelled) entry. */
