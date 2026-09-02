@@ -75,6 +75,55 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * EV adoption within this corporate's completed trips, and estimated CO2
+   * avoided vs. an all-petrol fleet baseline (~120 g CO2/km tailpipe
+   * average for a petrol sedan; an EV trip is treated as zero tailpipe
+   * emissions here — a simplification appropriate for a v1 sustainability
+   * card, not a certified carbon-accounting figure).
+   */
+  async sustainabilityDashboard(corporateOrgId: string, from: Date, to: Date) {
+    const CO2_GRAMS_PER_KM_PETROL = 120;
+
+    const trips = await this.prisma.trip.findMany({
+      where: { corporateOrgId, status: "COMPLETED", scheduledStartAt: { gte: from, lte: to } },
+      select: {
+        actualDistanceKm: true,
+        estimatedDistanceKm: true,
+        assignments: {
+          where: { status: "ACTIVE" },
+          select: { vehicle: { select: { isElectric: true } } },
+          take: 1,
+        },
+      },
+    });
+
+    let totalKm = 0;
+    let evKm = 0;
+    let evTrips = 0;
+    for (const trip of trips) {
+      const km = trip.actualDistanceKm ?? trip.estimatedDistanceKm ?? 0;
+      totalKm += km;
+      const isElectric = trip.assignments[0]?.vehicle?.isElectric ?? false;
+      if (isElectric) {
+        evKm += km;
+        evTrips += 1;
+      }
+    }
+
+    const co2AvoidedKg = (evKm * CO2_GRAMS_PER_KM_PETROL) / 1000;
+
+    return {
+      period: { from, to },
+      totalTrips: trips.length,
+      evTrips,
+      evAdoptionRate: trips.length > 0 ? evTrips / trips.length : null,
+      totalDistanceKm: totalKm,
+      evDistanceKm: evKm,
+      co2AvoidedKg,
+    };
+  }
+
   async complianceSummary(scopeOrgId?: string) {
     const grouped = await this.prisma.complianceEvaluation.groupBy({
       by: ["status", "subjectType"],

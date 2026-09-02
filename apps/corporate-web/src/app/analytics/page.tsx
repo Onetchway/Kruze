@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, CorporateAnalytics, VendorAnalytics, ComplianceSummaryRow, OrganisationRelationship } from "@/lib/api";
+import { api, CorporateAnalytics, VendorAnalytics, ComplianceSummaryRow, SustainabilityDashboard, OrganisationRelationship } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function pct(v: number | null): string {
@@ -16,11 +16,13 @@ export default function AnalyticsPage() {
   const [selectedVendorOrgId, setSelectedVendorOrgId] = useState("");
   const [vendorPerf, setVendorPerf] = useState<VendorAnalytics | null>(null);
   const [compliance, setCompliance] = useState<ComplianceSummaryRow[]>([]);
+  const [sustainability, setSustainability] = useState<SustainabilityDashboard | null>(null);
 
   useEffect(() => {
     if (!session) return;
     api.corporateAnalytics(session.accessToken).then(setCorp).catch(() => {});
     api.complianceSummary(session.accessToken).then(setCompliance).catch(() => {});
+    api.sustainabilityDashboard(session.accessToken).then(setSustainability).catch(() => {});
     api.listRelationships(session.accessToken).then((rels) => {
       const active = rels.filter((r) => r.type === "CORPORATE_VENDOR" && r.status === "ACTIVE");
       setVendors(active);
@@ -171,6 +173,32 @@ export default function AnalyticsPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Sustainability</h3>
+        <p style={{ color: "var(--text-muted)", fontSize: 12 }}>
+          EV adoption across completed trips and estimated CO2 avoided vs. an all-petrol fleet baseline — a v1
+          estimate, not a certified carbon-accounting figure.
+        </p>
+        <div className="stat-row">
+          <div className="stat-tile">
+            <div className="value">{pct(sustainability?.evAdoptionRate ?? null)}</div>
+            <div className="label">EV trips</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{(sustainability?.evDistanceKm ?? 0).toFixed(0)} km</div>
+            <div className="label">EV distance</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{(sustainability?.totalDistanceKm ?? 0).toFixed(0)} km</div>
+            <div className="label">Total distance</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{(sustainability?.co2AvoidedKg ?? 0).toFixed(1)} kg</div>
+            <div className="label">CO2 avoided</div>
+          </div>
+        </div>
       </div>
     </ProtectedShell>
   );

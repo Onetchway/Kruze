@@ -157,6 +157,16 @@ export interface VendorAnalytics {
   incidentCount: number;
 }
 
+export interface SustainabilityDashboard {
+  period: { from: string; to: string };
+  totalTrips: number;
+  evTrips: number;
+  evAdoptionRate: number | null;
+  totalDistanceKm: number;
+  evDistanceKm: number;
+  co2AvoidedKg: number;
+}
+
 export interface ComplianceSummaryRow {
   status: string;
   subjectType: string;
@@ -473,6 +483,7 @@ export const api = {
   vendorAnalytics: (token: string, vendorOrgId?: string) =>
     apiFetch<VendorAnalytics>(`/analytics/vendor/performance${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
   complianceSummary: (token: string) => apiFetch<ComplianceSummaryRow[]>("/analytics/compliance/summary", { token }),
+  sustainabilityDashboard: (token: string) => apiFetch<SustainabilityDashboard>("/analytics/sustainability", { token }),
 
   listInvoices: (token: string) => apiFetch<Invoice[]>("/invoices", { token }),
   createInvoice: (token: string, input: { vendorOrgId: string; periodStart: string; periodEnd: string }) =>

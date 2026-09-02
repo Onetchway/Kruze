@@ -63,4 +63,10 @@ export class AnalyticsController {
   complianceSummary(@CurrentUser() user: AuthenticatedUser) {
     return this.analytics.complianceSummary(user.organisationId);
   }
+
+  @Get("sustainability")
+  sustainability(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.sustainabilityDashboard(user.organisationId, fromDate, toDate);
+  }
 }
