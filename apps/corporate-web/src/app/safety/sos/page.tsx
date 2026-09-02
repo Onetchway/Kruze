@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, Incident, TripDetail } from "@/lib/api";
+import { api, ApiError, Incident, TripDetail, EscalationStep } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
+
+const DEFAULT_ESCALATION_CHAIN: EscalationStep[] = [
+  { role: "Guard" },
+  { role: "Transport Admin" },
+  { role: "SOS / Emergency Services" },
+];
 
 export default function SosPage() {
   const { session } = useAuth();
@@ -12,12 +18,63 @@ export default function SosPage() {
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [chain, setChain] = useState<EscalationStep[]>(DEFAULT_ESCALATION_CHAIN);
+  const [editingChain, setEditingChain] = useState(false);
+  const [draftChain, setDraftChain] = useState<EscalationStep[]>(DEFAULT_ESCALATION_CHAIN);
+  const [chainBusy, setChainBusy] = useState(false);
+
   function reload() {
     if (!session) return;
     api.listIncidents(session.accessToken).then((all) => setIncidents(all.filter((i) => i.category === "SOS"))).catch(() => {});
   }
 
+  function reloadChain() {
+    if (!session) return;
+    api.getCorporateSettings(session.accessToken).then((s) => {
+      const configured = s.config?.escalationChain;
+      if (configured && configured.length > 0) {
+        setChain(configured);
+        setDraftChain(configured);
+      }
+    }).catch(() => {});
+  }
+
   useEffect(reload, [session]);
+  useEffect(reloadChain, [session]);
+
+  function addStep() {
+    setDraftChain((prev) => [...prev, { role: "", contact: "" }]);
+  }
+  function removeStep(index: number) {
+    setDraftChain((prev) => prev.filter((_, i) => i !== index));
+  }
+  function moveStep(index: number, direction: -1 | 1) {
+    setDraftChain((prev) => {
+      const next = [...prev];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+  function updateStep(index: number, field: "role" | "contact", value: string) {
+    setDraftChain((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
+  }
+
+  async function saveChain() {
+    if (!session) return;
+    setChainBusy(true);
+    setError(null);
+    try {
+      await api.updateCorporateSettings(session.accessToken, { config: { escalationChain: draftChain } });
+      setChain(draftChain);
+      setEditingChain(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save escalation chain");
+    } finally {
+      setChainBusy(false);
+    }
+  }
 
   async function openIncident(incident: Incident) {
     setSelected(incident);
@@ -54,6 +111,56 @@ export default function SosPage() {
           <div className="value">{open.length}</div>
           <div className="label">Active SOS</div>
         </div>
+      </div>
+
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ marginTop: 0 }}>Escalation chain</h3>
+          {!editingChain && (
+            <button
+              className="secondary"
+              onClick={() => {
+                setDraftChain(chain);
+                setEditingChain(true);
+              }}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        {!editingChain ? (
+          <p style={{ margin: 0 }}>{chain.map((s) => s.role).join(" → ")}</p>
+        ) : (
+          <div>
+            {draftChain.map((step, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                <span style={{ color: "var(--text-muted)", width: 20 }}>{i + 1}.</span>
+                <input value={step.role} onChange={(e) => updateStep(i, "role", e.target.value)} placeholder="Role (e.g. Guard)" style={{ maxWidth: 200 }} />
+                <input value={step.contact ?? ""} onChange={(e) => updateStep(i, "contact", e.target.value)} placeholder="Contact (optional)" style={{ maxWidth: 200 }} />
+                <button className="secondary" type="button" onClick={() => moveStep(i, -1)} disabled={i === 0}>
+                  ↑
+                </button>
+                <button className="secondary" type="button" onClick={() => moveStep(i, 1)} disabled={i === draftChain.length - 1}>
+                  ↓
+                </button>
+                <button className="secondary" type="button" onClick={() => removeStep(i)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button className="secondary" type="button" onClick={addStep}>
+                Add step
+              </button>
+              <button type="button" onClick={saveChain} disabled={chainBusy || draftChain.length === 0}>
+                {chainBusy ? "Saving..." : "Save chain"}
+              </button>
+              <button className="secondary" type="button" onClick={() => setEditingChain(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">

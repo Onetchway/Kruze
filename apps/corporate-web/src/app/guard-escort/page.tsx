@@ -51,6 +51,12 @@ export default function GuardEscortPage() {
           <a href="/exceptions">Exceptions</a> for the affected trips.
         </p>
       </div>
+
+      <div className="card" style={{ borderColor: "var(--border)" }}>
+        <strong>Night-shift and escort-requirement rules live on the Female Safety policy</strong>, not here — this
+        page only reports coverage against whatever that policy configures.{" "}
+        <a href="/safety/female-safety">Open Female Safety policy →</a>
+      </div>
     </ProtectedShell>
   );
 }

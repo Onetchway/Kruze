@@ -13,7 +13,13 @@ function severityClass(sev: string) {
 export default function SafetyPage() {
   const { session } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [telemetry, setTelemetry] = useState<{ overspeedCount: number; gpsOfflineCount: number; runningTrips: number } | null>(null);
+  const [telemetry, setTelemetry] = useState<{
+    overspeedCount: number;
+    gpsOfflineCount: number;
+    runningTrips: number;
+    delayedCount: number;
+    routeDeviationCount: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function reload() {
@@ -62,6 +68,26 @@ export default function SafetyPage() {
         <div className={`stat-tile ${openIncidents.length > 0 ? "warning" : ""}`}>
           <div className="value">{openIncidents.length}</div>
           <div className="label">Other open incidents</div>
+        </div>
+        <div className={`stat-tile ${(telemetry?.delayedCount ?? 0) > 0 ? "warning" : ""}`}>
+          <div className="value">{telemetry?.delayedCount ?? 0}</div>
+          <div className="label">Delayed</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Route Deviations / Unexpected Stops</h3>
+        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          No planned-path data exists in the schema to detect true route deviation. The figure below is a coarse,
+          honest substitute: a running trip&apos;s latest GPS point is checked against a generous radius (3&nbsp;km)
+          around every one of its own planned stops — it flags only the unambiguous case of a vehicle nowhere near
+          any planned stop, and is not a substitute for real planned-path tracking (not yet implemented).
+        </p>
+        <div className="stat-row">
+          <div className={`stat-tile ${(telemetry?.routeDeviationCount ?? 0) > 0 ? "warning" : ""}`}>
+            <div className="value">{telemetry?.routeDeviationCount ?? 0}</div>
+            <div className="label">Possible deviations (radius check)</div>
+          </div>
         </div>
       </div>
 
