@@ -1,14 +1,10 @@
-import { IsEnum, IsLatitude, IsLongitude, IsOptional, IsString, MinLength } from "class-validator";
+import { IsEnum, IsLatitude, IsLongitude, IsOptional, IsString } from "class-validator";
 import { LocationType, PickupPointType } from "../../../generated/prisma";
 
-export class CreateLocationDto {
+export class UpdateLocationDto {
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  name!: string;
-
-  @IsString()
-  @MinLength(1)
-  code!: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
