@@ -6,13 +6,13 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/fleet", label: "Fleet" },
-  { href: "/drivers", label: "Drivers" },
-  { href: "/guards", label: "Guards" },
-  { href: "/trips", label: "Trips" },
-  { href: "/operational-mis", label: "Operational MIS" },
-  { href: "/connections", label: "Corporates" },
+  { href: "/dashboard", label: "Dashboard", icon: "▦" },
+  { href: "/fleet", label: "Fleet", icon: "🚐" },
+  { href: "/drivers", label: "Drivers", icon: "👤" },
+  { href: "/guards", label: "Guards", icon: "🛡" },
+  { href: "/trips", label: "Trips", icon: "🧭" },
+  { href: "/operational-mis", label: "Operational MIS", icon: "📊" },
+  { href: "/connections", label: "Corporates", icon: "🔗" },
 ];
 
 /** Every page in this app is fleet-operator/vendor-only, so — unlike corporate-web's shared shell — nothing here branches by role. */
@@ -40,23 +40,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="app-nav">
-        <h1>Kruze Operator</h1>
+        <div className="app-nav-brand">
+          <span className="app-nav-logo">K</span>
+          <span>Kruze Operator</span>
+        </div>
         {globalOrgId && (
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -16, marginBottom: 20 }}>
+          <div className="app-nav-id">
             Your Kruze ID
             <br />
-            <strong style={{ color: "var(--text)" }}>{globalOrgId}</strong>
+            <strong>{globalOrgId}</strong>
           </div>
         )}
         <nav>
           {NAV_ITEMS.map((item) => (
-            <a key={item.href} href={item.href} style={pathname === item.href ? { background: "var(--bg)" } : undefined}>
+            <a key={item.href} href={item.href} className={pathname === item.href ? "active" : undefined}>
+              <span className="nav-icon">{item.icon}</span>
               {item.label}
             </a>
           ))}
         </nav>
-        <div style={{ marginTop: 32 }}>
-          <button className="secondary" onClick={logout}>
+        <div className="app-nav-profile">
+          <button className="secondary" onClick={logout} style={{ width: "100%" }}>
             Log out
           </button>
         </div>

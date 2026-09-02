@@ -9,6 +9,14 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function statusBadgeClass(status: string): string {
+  const s = status.toUpperCase();
+  if (["ACTIVE", "APPROVED", "COMPLETED", "ONLINE"].some((k) => s.includes(k))) return "badge success";
+  if (["PENDING", "SCHEDULED", "TRIAL"].some((k) => s.includes(k))) return "badge warning";
+  if (["SUSPENDED", "CANCELLED", "REJECTED", "FAILED", "INACTIVE", "OFFLINE"].some((k) => s.includes(k))) return "badge danger";
+  return "badge neutral";
+}
+
 export default function EmployeesPage() {
   const { session } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -138,7 +146,7 @@ export default function EmployeesPage() {
                 <td>
                   {e.currentTrip ? (
                     <a href={`/trips/${e.currentTrip.id}`}>
-                      <span className="badge">{e.currentTrip.status.replaceAll("_", " ")}</span>
+                      <span className={statusBadgeClass(e.currentTrip.status)}>{e.currentTrip.status.replaceAll("_", " ")}</span>
                     </a>
                   ) : (
                     "—"
@@ -146,7 +154,7 @@ export default function EmployeesPage() {
                 </td>
                 <td>{e.phone}</td>
                 <td>
-                  <span className="badge">{e.status}</span>
+                  <span className={statusBadgeClass(e.status)}>{e.status}</span>
                 </td>
                 <td>
                   <button className="secondary" onClick={() => optInToday(e.id)} disabled={!shiftId}>
@@ -158,7 +166,7 @@ export default function EmployeesPage() {
             ))}
             {employees.length === 0 && (
               <tr>
-                <td colSpan={11} style={{ color: "var(--text-muted)" }}>
+                <td colSpan={11} className="table-empty">
                   No employees yet.
                 </td>
               </tr>

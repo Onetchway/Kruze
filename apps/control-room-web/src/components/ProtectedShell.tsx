@@ -5,8 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
-  { href: "/trips", label: "Live Trips" },
-  { href: "/incidents", label: "Incidents / SOS" },
+  { href: "/trips", label: "Live Trips", icon: "🧭" },
+  { href: "/incidents", label: "Incidents / SOS", icon: "🚨" },
 ];
 
 export function ProtectedShell({ children }: { children: React.ReactNode }) {
@@ -27,20 +27,24 @@ export function ProtectedShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="app-nav">
-        <h1>Control Room</h1>
+        <div className="app-nav-brand">
+          <span className="app-nav-logo">K</span>
+          <span>Control Room</span>
+        </div>
         <nav>
           {NAV_ITEMS.map((item) => (
             <a
               key={item.href}
               href={item.href}
-              style={pathname === item.href || pathname.startsWith(`${item.href}/`) ? { background: "var(--bg)" } : undefined}
+              className={pathname === item.href || pathname.startsWith(`${item.href}/`) ? "active" : undefined}
             >
+              <span className="nav-icon">{item.icon}</span>
               {item.label}
             </a>
           ))}
         </nav>
-        <div style={{ marginTop: 32 }}>
-          <button className="secondary" onClick={logout}>
+        <div className="app-nav-profile">
+          <button className="secondary" onClick={logout} style={{ width: "100%" }}>
             Log out
           </button>
         </div>
