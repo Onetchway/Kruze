@@ -64,9 +64,30 @@ export interface Employee {
   id: string;
   employeeCode: string;
   fullName: string;
+  gender: string | null;
   phone: string;
+  email: string | null;
   department: string | null;
+  costCentre: string | null;
+  officeLabel: string | null;
+  shiftId: string | null;
+  shift?: Shift | null;
   status: string;
+}
+
+export interface TripDetail extends Trip {
+  employees: { id: string; status: string; employee: Employee }[];
+  assignments: {
+    id: string;
+    driver: Driver | null;
+    vehicle: Vehicle | null;
+    guard: Guard | null;
+  }[];
+  stops: { id: string; sequence: number; stopType: string; latitude: number; longitude: number; plannedEta: string | null; actualArrivalAt: string | null }[];
+  corporateOrg?: { id: string; displayName: string; globalOrgId: string };
+  estimatedDistanceKm: number | null;
+  actualDistanceKm: number | null;
+  incidents: Incident[];
 }
 
 export interface TransportPlan {
@@ -109,6 +130,10 @@ export interface Trip {
   globalTripId: string;
   status: string;
   scheduledStartAt: string;
+  shiftId?: string;
+  vendorOrgId?: string | null;
+  shift?: Shift;
+  vendorOrg?: { id: string; displayName: string; globalOrgId: string } | null;
 }
 
 export interface Incident {
@@ -364,6 +389,10 @@ export const api = {
     token: string,
     input: { employeeCode: string; fullName: string; phone: string; department?: string; shiftId?: string },
   ) => apiFetch<Employee>("/employees", { method: "POST", body: input, token }),
+  getEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}`, { token }),
+  employeeCurrentTrip: (token: string, id: string) => apiFetch<TripDetail | null>(`/employees/${id}/current-trip`, { token }),
+  deactivateEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}/deactivate`, { method: "POST", token }),
+  reactivateEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}/reactivate`, { method: "POST", token }),
 
   upsertRosterEntry: (
     token: string,
@@ -386,8 +415,40 @@ export const api = {
     apiFetch<TransportPlan>("/plans/generate", { method: "POST", body: input, token }),
   planExceptions: (token: string, planId: string) => apiFetch<PlanException[]>(`/plans/${planId}/exceptions`, { token }),
   publishPlan: (token: string, planId: string) => apiFetch<TransportPlan>(`/plans/${planId}/publish`, { method: "POST", token }),
+  allExceptions: (token: string, status?: string) =>
+    apiFetch<(PlanException & { plan: { planDate: string; shift: Shift } })[]>(
+      `/plans/exceptions${status ? `?status=${status}` : ""}`,
+      { token },
+    ),
 
   listTrips: (token: string) => apiFetch<Trip[]>("/trips", { token }),
+  getTrip: (token: string, id: string) => apiFetch<TripDetail>(`/trips/${id}`, { token }),
+
+  listTransportRequests: (token: string, filters?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.from) params.set("from", filters.from);
+    if (filters?.to) params.set("to", filters.to);
+    const qs = params.toString();
+    return apiFetch<(RosterEntry & { requestStatus: string })[]>(`/roster-entries/requests${qs ? `?${qs}` : ""}`, { token });
+  },
+
+  guardEscortSummary: (token: string, date?: string) =>
+    apiFetch<{ required: number; assigned: number; exceptions: number }>(
+      `/safety-policies/guard-escort-summary${date ? `?date=${date}` : ""}`,
+      { token },
+    ),
+  liveSafetySummary: (token: string) =>
+    apiFetch<{ overspeedCount: number; gpsOfflineCount: number; runningTrips: number }>("/tracking/live-safety-summary", { token }),
+  fleetAnalytics: (token: string) =>
+    apiFetch<{ vehiclesUsed: number; evVehiclesUsed: number; totalDistanceKm: number; tripsByVehicleType: Record<string, number> }>(
+      "/analytics/fleet",
+      { token },
+    ),
+  safetyAnalytics: (token: string) =>
+    apiFetch<{ totalIncidents: number; incidentsByCategory: Record<string, number>; sosCount: number; noShowCount: number }>(
+      "/analytics/safety",
+      { token },
+    ),
 
   listVehicles: (token: string) => apiFetch<Vehicle[]>("/vehicles", { token }),
   listVehiclesNetwork: (token: string) => apiFetch<Vehicle[]>("/vehicles/network", { token }),
@@ -497,7 +558,8 @@ export const api = {
   corporateAnalytics: (token: string) => apiFetch<CorporateAnalytics>("/analytics/corporate/dashboard", { token }),
   vendorAnalytics: (token: string, vendorOrgId?: string) =>
     apiFetch<VendorAnalytics>(`/analytics/vendor/performance${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
-  complianceSummary: (token: string) => apiFetch<ComplianceSummaryRow[]>("/analytics/compliance/summary", { token }),
+  complianceSummary: (token: string, vendorOrgId?: string) =>
+    apiFetch<ComplianceSummaryRow[]>(`/analytics/compliance/summary${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
   sustainabilityDashboard: (token: string) => apiFetch<SustainabilityDashboard>("/analytics/sustainability", { token }),
 
   listInvoices: (token: string) => apiFetch<Invoice[]>("/invoices", { token }),

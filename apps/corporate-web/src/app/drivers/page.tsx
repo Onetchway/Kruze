@@ -6,6 +6,58 @@ import { api, ApiError, Driver } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
+const CORPORATE_ROLES = ["CORPORATE_TRANSPORT_ADMIN", "CORPORATE_HR"];
+
+function CorporateDriversNetwork() {
+  const { session } = useAuth();
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+
+  useEffect(() => {
+    if (!session) return;
+    api.listDriversNetwork(session.accessToken).then(setDrivers).catch(() => {});
+  }, [session]);
+
+  return (
+    <>
+      <h2 style={{ marginTop: 0 }}>Drivers</h2>
+      <p style={{ color: "var(--text-muted)" }}>
+        Drivers authorized for your operations via your connected vendors. The vendor remains responsible for the
+        driver&apos;s underlying profile.
+      </p>
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver ID</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drivers.map((d) => (
+              <tr key={d.id}>
+                <td>{d.globalDriverId}</td>
+                <td>{d.fullName}</td>
+                <td>{d.phone}</td>
+                <td>
+                  <span className="badge">{d.status}</span>
+                </td>
+              </tr>
+            ))}
+            {drivers.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ color: "var(--text-muted)" }}>
+                  No drivers from your connected vendors yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 function DriversContent() {
   const { session } = useAuth();
@@ -112,7 +164,9 @@ export default function DriversPage() {
 
   return (
     <ProtectedShell>
-      {session && !FLEET_ROLES.includes(session.role) ? (
+      {session && CORPORATE_ROLES.includes(session.role) ? (
+        <CorporateDriversNetwork />
+      ) : session && !FLEET_ROLES.includes(session.role) ? (
         <div className="card">
           <p style={{ margin: 0 }}>
             Driver management is available for Fleet Operator and Vendor accounts.

@@ -6,6 +6,62 @@ import { api, ApiError, Vehicle } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
+const CORPORATE_ROLES = ["CORPORATE_TRANSPORT_ADMIN", "CORPORATE_HR"];
+
+function CorporateFleetNetwork() {
+  const { session } = useAuth();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  useEffect(() => {
+    if (!session) return;
+    api.listVehiclesNetwork(session.accessToken).then(setVehicles).catch(() => {});
+  }, [session]);
+
+  return (
+    <>
+      <h2 style={{ marginTop: 0 }}>Fleet</h2>
+      <p style={{ color: "var(--text-muted)" }}>
+        Vehicles eligible for your transport programme, via your connected vendors. This platform doesn&apos;t own or
+        edit a vendor&apos;s fleet master — that stays with the vendor.
+      </p>
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Vehicle ID</th>
+              <th>Registration</th>
+              <th>Type</th>
+              <th>Capacity</th>
+              <th>Power</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vehicles.map((v) => (
+              <tr key={v.id}>
+                <td>{v.globalVehicleId}</td>
+                <td>{v.registrationNo}</td>
+                <td>{v.vehicleType}</td>
+                <td>{v.capacity}</td>
+                <td>{v.isElectric ? `EV${v.rangeKm ? ` · ${v.rangeKm}km` : ""}` : v.fuelType}</td>
+                <td>
+                  <span className="badge">{v.status}</span>
+                </td>
+              </tr>
+            ))}
+            {vehicles.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ color: "var(--text-muted)" }}>
+                  No vehicles from your connected vendors yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 function FleetContent() {
   const { session } = useAuth();
@@ -177,7 +233,9 @@ export default function FleetPage() {
 
   return (
     <ProtectedShell>
-      {session && !FLEET_ROLES.includes(session.role) ? (
+      {session && CORPORATE_ROLES.includes(session.role) ? (
+        <CorporateFleetNetwork />
+      ) : session && !FLEET_ROLES.includes(session.role) ? (
         <div className="card">
           <p style={{ margin: 0 }}>
             Fleet management is available for Fleet Operator and Vendor accounts. Sign in with one of those, or create

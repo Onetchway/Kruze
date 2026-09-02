@@ -100,6 +100,56 @@ a {
   color: var(--accent);
 }
 
+.app-nav-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.app-nav-group-toggle:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-nav-group-toggle.active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.app-nav-group-toggle .chevron {
+  margin-left: auto;
+  font-size: 10px;
+}
+
+.app-nav-group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 20px;
+  margin: 2px 0 4px;
+}
+
+.app-nav-group-children a {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
 .app-nav-profile {
   margin-top: 16px;
   padding-top: 14px;

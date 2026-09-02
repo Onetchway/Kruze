@@ -111,6 +111,8 @@ export default function EmployeesPage() {
             <tr>
               <th>Code</th>
               <th>Name</th>
+              <th>Department</th>
+              <th>Shift</th>
               <th>Phone</th>
               <th>Status</th>
               <th></th>
@@ -120,7 +122,11 @@ export default function EmployeesPage() {
             {employees.map((e) => (
               <tr key={e.id}>
                 <td>{e.employeeCode}</td>
-                <td>{e.fullName}</td>
+                <td>
+                  <a href={`/employees/${e.id}`}>{e.fullName}</a>
+                </td>
+                <td>{e.department ?? "—"}</td>
+                <td>{e.shift?.name ?? "—"}</td>
                 <td>{e.phone}</td>
                 <td>
                   <span className="badge">{e.status}</span>
@@ -135,7 +141,7 @@ export default function EmployeesPage() {
             ))}
             {employees.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ color: "var(--text-muted)" }}>
+                <td colSpan={7} style={{ color: "var(--text-muted)" }}>
                   No employees yet.
                 </td>
               </tr>

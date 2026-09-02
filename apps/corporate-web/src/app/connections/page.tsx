@@ -86,10 +86,17 @@ function ConnectionsContent() {
           <tbody>
             {relationships.map((rel) => {
               const counterpart = rel.sourceOrgId === session?.organisationId ? rel.targetOrg : rel.sourceOrg;
+              const counterpartOrgId = rel.sourceOrgId === session?.organisationId ? rel.targetOrgId : rel.sourceOrgId;
               const canAccept = rel.status === "INVITED" && rel.targetOrgId === session?.organisationId;
               return (
                 <tr key={rel.id}>
-                  <td>{counterpart.displayName}</td>
+                  <td>
+                    {isCorporate && rel.status === "ACTIVE" ? (
+                      <a href={`/vendors/${counterpartOrgId}`}>{counterpart.displayName}</a>
+                    ) : (
+                      counterpart.displayName
+                    )}
+                  </td>
                   <td>{counterpart.globalOrgId}</td>
                   <td>
                     <span className="badge">{rel.status}</span>
