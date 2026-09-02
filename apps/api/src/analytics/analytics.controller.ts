@@ -39,34 +39,52 @@ export class AnalyticsController {
     @Query("vendorOrgId") vendorOrgId?: string,
   ) {
     const { fromDate, toDate } = parseRange(from, to);
-    let targetOrgId = user.organisationId;
-    if (vendorOrgId && vendorOrgId !== user.organisationId) {
-      const relationship = await this.prisma.organisationRelationship.findFirst({
-        where: {
-          type: "CORPORATE_VENDOR",
-          status: "ACTIVE",
-          OR: [
-            { sourceOrgId: user.organisationId, targetOrgId: vendorOrgId },
-            { sourceOrgId: vendorOrgId, targetOrgId: user.organisationId },
-          ],
-        },
-      });
-      if (!relationship) {
-        throw new ForbiddenException("No active relationship with this vendor");
-      }
-      targetOrgId = vendorOrgId;
-    }
+    const targetOrgId = await this.resolveVendorScope(user, vendorOrgId);
     return this.analytics.vendorPerformance(targetOrgId, fromDate, toDate);
   }
 
   @Get("compliance/summary")
-  complianceSummary(@CurrentUser() user: AuthenticatedUser) {
-    return this.analytics.complianceSummary(user.organisationId);
+  async complianceSummary(@CurrentUser() user: AuthenticatedUser, @Query("vendorOrgId") vendorOrgId?: string) {
+    const targetOrgId = await this.resolveVendorScope(user, vendorOrgId);
+    return this.analytics.complianceSummary(targetOrgId);
   }
 
   @Get("sustainability")
   sustainability(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
     const { fromDate, toDate } = parseRange(from, to);
     return this.analytics.sustainabilityDashboard(user.organisationId, fromDate, toDate);
+  }
+
+  @Get("fleet")
+  fleetAnalytics(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.fleetAnalytics(user.organisationId, fromDate, toDate);
+  }
+
+  @Get("safety")
+  safetyAnalytics(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.safetyAnalytics(user.organisationId, fromDate, toDate);
+  }
+
+  /** Own org by default; a connected vendor's org only with an ACTIVE CORPORATE_VENDOR relationship in place. */
+  private async resolveVendorScope(user: AuthenticatedUser, vendorOrgId?: string): Promise<string> {
+    if (!vendorOrgId || vendorOrgId === user.organisationId) {
+      return user.organisationId;
+    }
+    const relationship = await this.prisma.organisationRelationship.findFirst({
+      where: {
+        type: "CORPORATE_VENDOR",
+        status: "ACTIVE",
+        OR: [
+          { sourceOrgId: user.organisationId, targetOrgId: vendorOrgId },
+          { sourceOrgId: vendorOrgId, targetOrgId: user.organisationId },
+        ],
+      },
+    });
+    if (!relationship) {
+      throw new ForbiddenException("No active relationship with this vendor");
+    }
+    return vendorOrgId;
   }
 }

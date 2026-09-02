@@ -231,6 +231,14 @@ export interface Driver {
   status: string;
 }
 
+export interface Guard {
+  id: string;
+  globalGuardId: string;
+  fullName: string;
+  phone: string;
+  status: string;
+}
+
 export interface Vehicle {
   id: string;
   globalVehicleId: string;
@@ -382,6 +390,7 @@ export const api = {
   listTrips: (token: string) => apiFetch<Trip[]>("/trips", { token }),
 
   listVehicles: (token: string) => apiFetch<Vehicle[]>("/vehicles", { token }),
+  listVehiclesNetwork: (token: string) => apiFetch<Vehicle[]>("/vehicles/network", { token }),
   createVehicle: (
     token: string,
     input: {
@@ -408,8 +417,14 @@ export const api = {
     apiFetch<OrganisationRelationship>(`/organisation-relationships/${relationshipId}/accept`, { method: "POST", token }),
 
   listDrivers: (token: string) => apiFetch<Driver[]>("/drivers", { token }),
+  listDriversNetwork: (token: string) => apiFetch<Driver[]>("/drivers/network", { token }),
   createDriver: (token: string, input: { fullName: string; phone: string; licenceNumber?: string }) =>
     apiFetch<Driver>("/drivers", { method: "POST", body: input, token }),
+
+  listGuards: (token: string) => apiFetch<Guard[]>("/guards", { token }),
+  listGuardsNetwork: (token: string) => apiFetch<Guard[]>("/guards/network", { token }),
+  createGuard: (token: string, input: { fullName: string; phone: string }) =>
+    apiFetch<Guard>("/guards", { method: "POST", body: input, token }),
 
   getCorporateSettings: (token: string) => apiFetch<CorporateSettings>("/corporate/settings", { token }),
   updateCorporateSettings: (

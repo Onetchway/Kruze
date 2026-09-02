@@ -37,12 +37,13 @@ export class EmployeeService {
   listForCorporate(corporateOrgId: string) {
     return this.prisma.employee.findMany({
       where: { corporateOrgId, status: "ACTIVE" },
+      include: { shift: true },
       orderBy: { createdAt: "desc" },
     });
   }
 
   async getForOrganisation(actor: AuthenticatedUser, employeeId: string) {
-    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId } });
+    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId }, include: { shift: true } });
     if (!employee) {
       throw new NotFoundException("Employee not found");
     }
@@ -52,9 +53,36 @@ export class EmployeeService {
     return employee;
   }
 
+  /** Today's trip (if any) this employee is booked on — for the employee detail screen's "current trip" panel. */
+  async currentTripToday(actor: AuthenticatedUser, employeeId: string) {
+    await this.getForOrganisation(actor, employeeId);
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const tripEmployee = await this.prisma.tripEmployee.findFirst({
+      where: {
+        employeeId,
+        trip: { scheduledStartAt: { gte: dayStart, lt: dayEnd }, status: { notIn: ["CANCELLED", "FAILED"] } },
+      },
+      include: {
+        trip: {
+          include: { assignments: { where: { status: "ACTIVE" }, include: { driver: true, vehicle: true, guard: true } } },
+        },
+      },
+      orderBy: { trip: { scheduledStartAt: "desc" } },
+    });
+    return tripEmployee?.trip ?? null;
+  }
+
   async deactivate(actor: AuthenticatedUser, employeeId: string) {
     await this.getForOrganisation(actor, employeeId);
     return this.prisma.employee.update({ where: { id: employeeId }, data: { status: "INACTIVE" } });
+  }
+
+  async reactivate(actor: AuthenticatedUser, employeeId: string) {
+    await this.getForOrganisation(actor, employeeId);
+    return this.prisma.employee.update({ where: { id: employeeId }, data: { status: "ACTIVE" } });
   }
 
   /**

@@ -60,6 +60,11 @@ export class RosterController {
     return this.roster.listForCorporate(user, { shiftId, from, to });
   }
 
+  @Get("requests")
+  requests(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    return this.roster.listRequestsForCorporate(user, { from, to });
+  }
+
   @Post(":id/cancel")
   @Audited({ action: "ROSTER_ENTRY_CANCELLED", resourceType: "RosterEntry" })
   cancel(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {

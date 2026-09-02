@@ -27,6 +27,12 @@ export class VehicleController {
     return this.vehicles.listForVendor(user.organisationId);
   }
 
+  /** For a corporate: vehicles belonging to its connected vendors — not vendor-only management, read visibility. */
+  @Get("network")
+  listNetwork(@CurrentUser() user: AuthenticatedUser) {
+    return this.vehicles.listForCorporateNetwork(user.organisationId);
+  }
+
   @Get(":id")
   get(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.vehicles.getForOrganisation(user, id);

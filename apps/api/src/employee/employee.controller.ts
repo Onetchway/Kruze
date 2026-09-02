@@ -82,11 +82,25 @@ export class EmployeeController {
     return this.employees.getForOrganisation(user, id);
   }
 
+  @Get(":id/current-trip")
+  @UseGuards(JwtAuthGuard)
+  currentTripToday(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.employees.currentTripToday(user, id);
+  }
+
   @Post(":id/deactivate")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...EMPLOYEE_ADMIN_ROLES)
   @Audited({ action: "EMPLOYEE_DEACTIVATED", resourceType: "Employee" })
   deactivate(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.employees.deactivate(user, id);
+  }
+
+  @Post(":id/reactivate")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...EMPLOYEE_ADMIN_ROLES)
+  @Audited({ action: "EMPLOYEE_REACTIVATED", resourceType: "Employee" })
+  reactivate(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.employees.reactivate(user, id);
   }
 }

@@ -110,6 +110,55 @@ export class RosterService {
     });
   }
 
+  /**
+   * "Transport Requests" view: every roster entry with a derived request
+   * status. A cancelled entry is CANCELLED; otherwise, if a trip already
+   * covers this employee on the same shift/date, its trip status maps to
+   * ASSIGNED/COMPLETED/CANCELLED; with no trip yet, it's NEW (opted in,
+   * not yet picked up by a plan).
+   */
+  async listRequestsForCorporate(actor: AuthenticatedUser, filters: { from?: string; to?: string }) {
+    const entries = await this.listForCorporate(actor, filters);
+    if (entries.length === 0) return [];
+
+    const tripEmployees = await this.prisma.tripEmployee.findMany({
+      where: {
+        employeeId: { in: entries.map((e) => e.employeeId) },
+        trip: {
+          scheduledStartAt: {
+            gte: new Date(Math.min(...entries.map((e) => e.date.getTime()))),
+            lt: new Date(Math.max(...entries.map((e) => e.date.getTime())) + 24 * 60 * 60 * 1000),
+          },
+        },
+      },
+      include: { trip: true },
+    });
+
+    return entries.map((entry) => {
+      if (entry.status === "CANCELLED") {
+        return { ...entry, requestStatus: "CANCELLED" as const };
+      }
+      const match = tripEmployees.find(
+        (te) =>
+          te.employeeId === entry.employeeId &&
+          te.trip.shiftId === entry.shiftId &&
+          te.trip.scheduledStartAt.toDateString() === entry.date.toDateString(),
+      );
+      if (!match) {
+        return { ...entry, requestStatus: "NEW" as const };
+      }
+      const status: "COMPLETED" | "CANCELLED" | "APPROVED" | "ASSIGNED" =
+        match.trip.status === "COMPLETED"
+          ? "COMPLETED"
+          : match.trip.status === "CANCELLED" || match.trip.status === "FAILED"
+            ? "CANCELLED"
+            : match.trip.status === "CREATED"
+              ? "APPROVED"
+              : "ASSIGNED";
+      return { ...entry, requestStatus: status };
+    });
+  }
+
   async cancel(actor: AuthenticatedUser, rosterEntryId: string) {
     const entry = await this.prisma.rosterEntry.findUnique({
       where: { id: rosterEntryId },

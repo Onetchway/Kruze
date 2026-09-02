@@ -124,6 +124,62 @@ export class AnalyticsService {
     };
   }
 
+  /** Fleet mix and utilization for vehicles that served this corporate's trips in range. */
+  async fleetAnalytics(corporateOrgId: string, from: Date, to: Date) {
+    const assignments = await this.prisma.tripAssignment.findMany({
+      where: {
+        status: "ACTIVE",
+        vehicleId: { not: null },
+        trip: { corporateOrgId, scheduledStartAt: { gte: from, lte: to } },
+      },
+      select: {
+        vehicleId: true,
+        vehicle: { select: { isElectric: true, vehicleType: true } },
+        trip: { select: { actualDistanceKm: true, estimatedDistanceKm: true } },
+      },
+    });
+
+    const distinctVehicleIds = new Set(assignments.map((a) => a.vehicleId));
+    const evVehicleIds = new Set(assignments.filter((a) => a.vehicle?.isElectric).map((a) => a.vehicleId));
+    const totalKm = assignments.reduce((sum, a) => sum + (a.trip.actualDistanceKm ?? a.trip.estimatedDistanceKm ?? 0), 0);
+    const byType = assignments.reduce<Record<string, number>>((acc, a) => {
+      const type = a.vehicle?.vehicleType ?? "UNKNOWN";
+      acc[type] = (acc[type] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      period: { from, to },
+      vehiclesUsed: distinctVehicleIds.size,
+      evVehiclesUsed: evVehicleIds.size,
+      totalDistanceKm: totalKm,
+      tripsByVehicleType: byType,
+    };
+  }
+
+  /** Safety incident breakdown for this corporate's trips in range — feeds the Safety analytics tab. */
+  async safetyAnalytics(corporateOrgId: string, from: Date, to: Date) {
+    const incidents = await this.prisma.incident.findMany({
+      where: { trip: { corporateOrgId, scheduledStartAt: { gte: from, lte: to } } },
+      select: { category: true },
+    });
+    const byCategory = incidents.reduce<Record<string, number>>((acc, i) => {
+      acc[i.category] = (acc[i.category] ?? 0) + 1;
+      return acc;
+    }, {});
+    const noShows = await this.prisma.tripEmployee.count({
+      where: { status: "NO_SHOW", trip: { corporateOrgId, scheduledStartAt: { gte: from, lte: to } } },
+    });
+
+    return {
+      period: { from, to },
+      totalIncidents: incidents.length,
+      incidentsByCategory: byCategory,
+      sosCount: byCategory.SOS ?? 0,
+      noShowCount: noShows,
+    };
+  }
+
   async complianceSummary(scopeOrgId?: string) {
     const grouped = await this.prisma.complianceEvaluation.groupBy({
       by: ["status", "subjectType"],

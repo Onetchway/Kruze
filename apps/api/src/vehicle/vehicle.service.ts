@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { PolicyService } from "../authz/policy.service";
 import { AuthenticatedUser } from "../common/request-context";
+import { eligibleVendorOrgIds } from "../common/vendor-network";
 
 @Injectable()
 export class VehicleService {
@@ -57,6 +58,16 @@ export class VehicleService {
     return this.prisma.vehicle.findMany({
       where: { vendorRelationships: { some: { vendorOrgId, status: "ACTIVE" } } },
       include: { vendorRelationships: { where: { vendorOrgId } } },
+    });
+  }
+
+  /** Vehicles belonging to any vendor this corporate has an active relationship with — the corporate's "eligible fleet" view. */
+  async listForCorporateNetwork(corporateOrgId: string) {
+    const vendorOrgIds = await eligibleVendorOrgIds(this.prisma, corporateOrgId);
+    if (vendorOrgIds.length === 0) return [];
+    return this.prisma.vehicle.findMany({
+      where: { vendorRelationships: { some: { vendorOrgId: { in: vendorOrgIds }, status: "ACTIVE" } } },
+      include: { vendorRelationships: { where: { vendorOrgId: { in: vendorOrgIds } } } },
     });
   }
 

@@ -48,6 +48,13 @@ export class DriverController {
     return this.drivers.listForVendor(user.organisationId);
   }
 
+  /** For a corporate: drivers authorized via its connected vendors. */
+  @Get("network")
+  @UseGuards(JwtAuthGuard)
+  listNetwork(@CurrentUser() user: AuthenticatedUser) {
+    return this.drivers.listForCorporateNetwork(user.organisationId);
+  }
+
   @Get(":id")
   @UseGuards(JwtAuthGuard)
   get(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {

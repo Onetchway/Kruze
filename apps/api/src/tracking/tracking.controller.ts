@@ -30,6 +30,11 @@ export class TrackingController {
   historyForTrip(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.tracking.historyForTrip(user, id);
   }
+
+  @Get("live-safety-summary")
+  liveSafetySummary(@CurrentUser() user: AuthenticatedUser) {
+    return this.tracking.liveSafetySummary(user.organisationId);
+  }
 }
 
 @Controller("geofences")

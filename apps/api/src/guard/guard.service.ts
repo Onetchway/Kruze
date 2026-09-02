@@ -5,6 +5,7 @@ import { PolicyService } from "../authz/policy.service";
 import { AuthenticatedUser } from "../common/request-context";
 import { UsersService } from "../identity/users.service";
 import { AuthService } from "../auth/auth.service";
+import { eligibleVendorOrgIds } from "../common/vendor-network";
 
 @Injectable()
 export class GuardService {
@@ -36,6 +37,16 @@ export class GuardService {
     return this.prisma.guard.findMany({
       where: { vendorRelationships: { some: { vendorOrgId, status: "ACTIVE" } } },
       include: { vendorRelationships: { where: { vendorOrgId } } },
+    });
+  }
+
+  /** Guards authorized for this corporate's operations via its connected vendors. */
+  async listForCorporateNetwork(corporateOrgId: string) {
+    const vendorOrgIds = await eligibleVendorOrgIds(this.prisma, corporateOrgId);
+    if (vendorOrgIds.length === 0) return [];
+    return this.prisma.guard.findMany({
+      where: { vendorRelationships: { some: { vendorOrgId: { in: vendorOrgIds }, status: "ACTIVE" } } },
+      include: { vendorRelationships: { where: { vendorOrgId: { in: vendorOrgIds } } } },
     });
   }
 

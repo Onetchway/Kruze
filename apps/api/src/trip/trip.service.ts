@@ -186,7 +186,19 @@ export class TripService {
   async get(actor: AuthenticatedUser, tripId: string) {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
-      include: { employees: true, assignments: { where: { status: "ACTIVE" } }, events: { orderBy: { createdAt: "desc" } } },
+      include: {
+        employees: { include: { employee: true } },
+        assignments: {
+          where: { status: "ACTIVE" },
+          include: { driver: true, vehicle: true, guard: true },
+        },
+        events: { orderBy: { createdAt: "desc" } },
+        stops: { orderBy: { sequence: "asc" } },
+        shift: true,
+        vendorOrg: true,
+        corporateOrg: true,
+        incidents: { orderBy: { createdAt: "desc" } },
+      },
     });
     if (!trip) {
       throw new NotFoundException("Trip not found");
@@ -200,6 +212,7 @@ export class TripService {
   listForOrganisation(organisationId: string) {
     return this.prisma.trip.findMany({
       where: { OR: [{ corporateOrgId: organisationId }, { vendorOrgId: organisationId }] },
+      include: { shift: true, vendorOrg: true },
       orderBy: { scheduledStartAt: "desc" },
       take: 100,
     });

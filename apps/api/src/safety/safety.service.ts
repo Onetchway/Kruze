@@ -44,6 +44,36 @@ export class SafetyService {
     return this.prisma.safetyPolicy.create({ data: { corporateOrgId, name } });
   }
 
+  /**
+   * Today's guard/escort coverage: trips with an active guard assignment
+   * ("assigned"), plus NO_GUARD_AVAILABLE plan exceptions for today's
+   * plans ("exceptions") — required is the sum of both, mirroring how the
+   * planner itself only ever knows a guard was needed when it either
+   * assigned one or gave up looking for one.
+   */
+  async guardEscortSummary(corporateOrgId: string, date: string) {
+    const dayStart = new Date(date);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const [assigned, exceptions] = await Promise.all([
+      this.prisma.tripAssignment.count({
+        where: {
+          status: "ACTIVE",
+          guardId: { not: null },
+          trip: { corporateOrgId, scheduledStartAt: { gte: dayStart, lt: dayEnd } },
+        },
+      }),
+      this.prisma.planException.count({
+        where: {
+          type: "NO_GUARD_AVAILABLE",
+          plan: { corporateOrgId, planDate: { gte: dayStart, lt: dayEnd } },
+        },
+      }),
+    ]);
+
+    return { required: assigned + exceptions, assigned, exceptions };
+  }
+
   listPolicies(corporateOrgId: string) {
     return this.prisma.safetyPolicy.findMany({
       where: { corporateOrgId },

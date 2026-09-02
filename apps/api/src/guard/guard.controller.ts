@@ -48,6 +48,13 @@ export class GuardController {
     return this.guards.listForVendor(user.organisationId);
   }
 
+  /** For a corporate: guards authorized via its connected vendors. */
+  @Get("network")
+  @UseGuards(JwtAuthGuard)
+  listNetwork(@CurrentUser() user: AuthenticatedUser) {
+    return this.guards.listForCorporateNetwork(user.organisationId);
+  }
+
   @Get(":id")
   @UseGuards(JwtAuthGuard)
   get(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {

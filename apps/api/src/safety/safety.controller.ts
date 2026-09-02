@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
 import { SafetyService } from "./safety.service";
 import { CreateSafetyPolicyDto } from "./dto/create-safety-policy.dto";
@@ -31,5 +31,10 @@ export class SafetyController {
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.safety.listPolicies(user.organisationId);
+  }
+
+  @Get("guard-escort-summary")
+  guardEscortSummary(@CurrentUser() user: AuthenticatedUser, @Query("date") date?: string) {
+    return this.safety.guardEscortSummary(user.organisationId, date ?? new Date().toISOString().slice(0, 10));
   }
 }

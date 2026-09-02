@@ -179,6 +179,19 @@ export class PlanningService {
     return this.prisma.planException.findMany({ where: { planId }, orderBy: { createdAt: "asc" } });
   }
 
+  /** Every exception across every one of this corporate's plans — the triage inbox, not one plan at a time. */
+  exceptionsForCorporate(corporateOrgId: string, status?: string) {
+    return this.prisma.planException.findMany({
+      where: {
+        status: status ? (status as never) : undefined,
+        plan: { corporateOrgId },
+      },
+      include: { plan: { include: { shift: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  }
+
   /**
    * Tries the real OR-Tools CVRP solver first (only meaningful when every
    * employee has home coordinates); falls back to the clusterByProximity

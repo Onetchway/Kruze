@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
 import { PlanningService } from "./planning.service";
 import { GeneratePlanDto } from "./dto/generate-plan.dto";
@@ -24,6 +24,12 @@ export class PlanningController {
   @Get(":id/exceptions")
   exceptions(@Param("id") id: string) {
     return this.planning.exceptionsForPlan(id);
+  }
+
+  /** Cross-plan exceptions inbox for this corporate — the triage screen, not one plan at a time. */
+  @Get("exceptions")
+  allExceptions(@CurrentUser() user: AuthenticatedUser, @Query("status") status?: string) {
+    return this.planning.exceptionsForCorporate(user.organisationId, status);
   }
 
   @Post(":id/publish")

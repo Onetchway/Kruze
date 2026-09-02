@@ -21,6 +21,47 @@ export class TrackingService {
     private readonly kafka: KafkaProducerService,
   ) {}
 
+  /**
+   * Live-safety telemetry signals for a corporate's currently-running
+   * trips: overspeed (a raw LocationEvent above the threshold in the last
+   * hour) and GPS-offline (no LocationEvent at all in the last 15 minutes
+   * for a trip that should be reporting). Route-deviation and other
+   * qualitative signals stay reported incidents (IncidentCategory) rather
+   * than derived here, since deviation needs a planned-path comparison
+   * this schema doesn't store yet.
+   */
+  async liveSafetySummary(corporateOrgId: string) {
+    const OVERSPEED_THRESHOLD_KMH = 80;
+    const now = Date.now();
+    const oneHourAgo = new Date(now - 60 * 60 * 1000);
+    const fifteenMinAgo = new Date(now - 15 * 60 * 1000);
+
+    const runningTrips = await this.prisma.trip.findMany({
+      where: { corporateOrgId, status: { in: ["RUNNING", "EN_ROUTE_TO_FIRST_PICKUP"] } },
+      select: { id: true },
+    });
+    const runningTripIds = runningTrips.map((t) => t.id);
+    if (runningTripIds.length === 0) {
+      return { overspeedCount: 0, gpsOfflineCount: 0, runningTrips: 0 };
+    }
+
+    const overspeedEvents = await this.prisma.locationEvent.findMany({
+      where: { tripId: { in: runningTripIds }, recordedAt: { gte: oneHourAgo }, speed: { gt: OVERSPEED_THRESHOLD_KMH / 3.6 } },
+      distinct: ["tripId"],
+      select: { tripId: true },
+    });
+
+    const recentlyReportingTripIds = await this.prisma.locationEvent.findMany({
+      where: { tripId: { in: runningTripIds }, recordedAt: { gte: fifteenMinAgo } },
+      distinct: ["tripId"],
+      select: { tripId: true },
+    });
+    const reportingSet = new Set(recentlyReportingTripIds.map((e) => e.tripId));
+    const gpsOfflineCount = runningTripIds.filter((id) => !reportingSet.has(id)).length;
+
+    return { overspeedCount: overspeedEvents.length, gpsOfflineCount, runningTrips: runningTripIds.length };
+  }
+
   async ingest(
     actor: AuthenticatedUser,
     input: {
