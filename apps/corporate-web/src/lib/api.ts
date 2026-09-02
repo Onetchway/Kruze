@@ -236,6 +236,19 @@ export interface Vehicle {
   rangeKm: number | null;
 }
 
+export interface NotificationSettings {
+  push?: boolean;
+  sms?: boolean;
+  whatsapp?: boolean;
+  email?: boolean;
+}
+
+export interface TransportPolicy {
+  defaultCutoffMinutes?: number;
+  allowEmployeeSelfCancel?: boolean;
+  maxTripDetourMinutes?: number;
+}
+
 export interface CorporateSettings {
   organisationId: string;
   address: string | null;
@@ -246,6 +259,14 @@ export interface CorporateSettings {
   contractEndsAt: string | null;
   paymentTerms: string | null;
   employeePickupChangeLimit: number;
+  config: { notificationSettings?: NotificationSettings; transportPolicy?: TransportPolicy } | null;
+}
+
+export interface CorporateMember {
+  id: string;
+  role: string;
+  status: string;
+  user: { id: string; email: string; displayName: string };
 }
 
 export interface Location {
@@ -395,8 +416,20 @@ export const api = {
         | "paymentTerms"
         | "employeePickupChangeLimit"
       >
-    >,
+    > & { config?: Record<string, unknown> },
   ) => apiFetch<CorporateSettings>("/corporate/settings", { method: "PUT", body: input, token }),
+
+  listCorporateUsers: (token: string) => apiFetch<CorporateMember[]>("/corporate/users", { token }),
+  inviteCorporateUser: (token: string, input: { email: string; displayName: string; role: string }) =>
+    apiFetch<{ membership: CorporateMember; temporaryPassword: string | null }>("/corporate/users", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  suspendCorporateUser: (token: string, membershipId: string) =>
+    apiFetch<CorporateMember>(`/corporate/users/${membershipId}/suspend`, { method: "POST", token }),
+  reactivateCorporateUser: (token: string, membershipId: string) =>
+    apiFetch<CorporateMember>(`/corporate/users/${membershipId}/reactivate`, { method: "POST", token }),
 
   employeeSignup: (input: { globalOrgId: string; fullName: string; phone: string; email: string; password: string; department?: string }) =>
     apiFetch<Employee>("/employees/signup", { method: "POST", body: input }),
