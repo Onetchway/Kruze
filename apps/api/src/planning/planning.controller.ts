@@ -11,7 +11,12 @@ import { Audited } from "../audit/audited.decorator";
 
 @Controller("plans")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.SUPERVISOR_DISPATCHER)
+@Roles(
+  PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+  PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+  PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+  PlatformRole.SUPERVISOR_DISPATCHER,
+)
 export class PlanningController {
   constructor(private readonly planning: PlanningService) {}
 

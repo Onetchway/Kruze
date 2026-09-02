@@ -162,6 +162,8 @@ export default function ContractsPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [vendorOrgId, setVendorOrgId] = useState("");
   const [startsAt, setStartsAt] = useState(todayIso());
+  const [slaTargetPercent, setSlaTargetPercent] = useState("95");
+  const [penaltyDescription, setPenaltyDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -196,7 +198,14 @@ export default function ContractsPage() {
     setBusy(true);
     setError(null);
     try {
-      await api.createContract(session.accessToken, { vendorOrgId, startsAt });
+      await api.createContract(session.accessToken, {
+        vendorOrgId,
+        startsAt,
+        slaTargets: {
+          targetPercent: slaTargetPercent ? Number(slaTargetPercent) : undefined,
+          penaltyDescription: penaltyDescription || undefined,
+        },
+      });
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create contract");
@@ -238,6 +247,14 @@ export default function ContractsPage() {
             <label>Starts</label>
             <input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required />
           </div>
+          <div className="field" style={{ marginBottom: 0, maxWidth: 120 }}>
+            <label>SLA target %</label>
+            <input type="number" min={0} max={100} value={slaTargetPercent} onChange={(e) => setSlaTargetPercent(e.target.value)} />
+          </div>
+          <div className="field" style={{ marginBottom: 0, minWidth: 200 }}>
+            <label>Penalty (optional)</label>
+            <input value={penaltyDescription} onChange={(e) => setPenaltyDescription(e.target.value)} placeholder="e.g. 1% credit per point below SLA" />
+          </div>
           <button type="submit" disabled={busy || !vendorOrgId}>
             Create contract
           </button>
@@ -256,6 +273,12 @@ export default function ContractsPage() {
             <div>
               <strong>{vendorName(c.vendorOrgId)}</strong>{" "}
               <span className="badge">{c.status}</span>
+              {c.slaTargets?.targetPercent != null && (
+                <span style={{ marginLeft: 12, fontSize: 13, color: "var(--text-muted)" }}>
+                  SLA {c.slaTargets.targetPercent}%
+                  {c.slaTargets.penaltyDescription ? ` · Penalty: ${c.slaTargets.penaltyDescription}` : ""}
+                </span>
+              )}
             </div>
             <div>
               {c.status === "DRAFT" && <button onClick={() => handleActivate(c.id)}>Activate</button>}

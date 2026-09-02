@@ -4,9 +4,12 @@ import { PlatformRole } from "../../../generated/prisma";
 /** Roles a corporate admin may grant to a teammate — never a platform/vendor/driver role. */
 export const INVITABLE_CORPORATE_ROLES: PlatformRole[] = [
   "CORPORATE_TRANSPORT_ADMIN",
+  "CORPORATE_TRANSPORT_MANAGER",
+  "CORPORATE_TRANSPORT_SUPERVISOR",
   "CORPORATE_HR",
   "CORPORATE_FINANCE",
   "CORPORATE_SAFETY_COMPLIANCE",
+  "CORPORATE_MANAGEMENT",
   "AUDITOR",
 ];
 

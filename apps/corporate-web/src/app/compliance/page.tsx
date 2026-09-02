@@ -2,15 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, ComplianceRule } from "@/lib/api";
+import { api, ApiError, ComplianceRule, ComplianceSummaryRow } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 const SUBJECT_TYPES = ["DRIVER", "VEHICLE", "GUARD", "VENDOR"];
 const SCOPES = ["GLOBAL", "VENDOR", "CORPORATE", "TRIP"];
+const STATUS_BUCKETS = [
+  { status: "COMPLIANT", label: "Compliant" },
+  { status: "EXPIRING", label: "Expiring Soon" },
+  { status: "NON_COMPLIANT", label: "Expired / Non-compliant" },
+  { status: "UNDER_REVIEW", label: "Under Review" },
+  { status: "SUSPENDED", label: "Blocked" },
+];
 
 export default function CompliancePage() {
   const { session } = useAuth();
   const [rules, setRules] = useState<ComplianceRule[]>([]);
+  const [evaluations, setEvaluations] = useState<ComplianceSummaryRow[]>([]);
   const [scope, setScope] = useState("CORPORATE");
   const [subjectType, setSubjectType] = useState("DRIVER");
   const [docType, setDocType] = useState("");
@@ -23,11 +31,16 @@ export default function CompliancePage() {
   function reload() {
     if (!session) return;
     api.listComplianceRules(session.accessToken).then(setRules).catch(() => {});
+    api.complianceSummary(session.accessToken).then(setEvaluations).catch(() => {});
   }
 
   useEffect(reload, [session]);
 
   const byType = SUBJECT_TYPES.map((t) => ({ type: t, rules: rules.filter((r) => r.subjectType === t) }));
+  const bucketCounts = STATUS_BUCKETS.map((b) => ({
+    ...b,
+    count: evaluations.filter((e) => e.status === b.status).reduce((sum, e) => sum + e.count, 0),
+  }));
 
   async function handleCreate() {
     if (!session || !docType) return;
@@ -63,12 +76,32 @@ export default function CompliancePage() {
       subtitle="Required-document policy per resource type — feeds the allocation engine's eligibility checks."
     >
       <div className="stat-row">
-        {byType.map(({ type, rules: r }) => (
-          <div key={type} className="stat-tile">
-            <div className="value">{r.length}</div>
-            <div className="label">{type} document rules</div>
+        {bucketCounts.map((b) => (
+          <div key={b.status} className={`stat-tile ${b.status === "NON_COMPLIANT" || b.status === "SUSPENDED" ? (b.count > 0 ? "warning" : "") : ""}`}>
+            <div className="value">{b.count}</div>
+            <div className="label">{b.label}</div>
           </div>
         ))}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Required documents by resource type</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+          {byType.map(({ type, rules: r }) => (
+            <div key={type}>
+              <strong>{type}</strong>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13 }}>
+                {r.length === 0 && <li style={{ color: "var(--text-muted)" }}>No documents required yet</li>}
+                {r.map((rule) => (
+                  <li key={rule.id}>
+                    ✓ {rule.docType}
+                    {rule.severity === "WARNING" && <span style={{ color: "var(--text-muted)" }}> (advisory)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card">

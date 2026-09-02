@@ -16,6 +16,16 @@ export class CorporateController {
   constructor(private readonly corporate: CorporateService) {}
 
   @Get()
+  @Roles(
+    PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+    PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+    PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+    PlatformRole.CORPORATE_MANAGEMENT,
+    PlatformRole.CORPORATE_HR,
+    PlatformRole.CORPORATE_FINANCE,
+    PlatformRole.CORPORATE_SAFETY_COMPLIANCE,
+    PlatformRole.AUDITOR,
+  )
   get(@CurrentUser() user: AuthenticatedUser) {
     return this.corporate.getSettings(user.organisationId);
   }

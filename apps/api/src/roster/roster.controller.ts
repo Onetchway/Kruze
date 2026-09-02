@@ -19,7 +19,7 @@ export class ShiftController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_TRANSPORT_MANAGER, PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR)
   @Audited({ action: "SHIFT_CREATED", resourceType: "Shift" })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateShiftDto) {
     return this.shifts.create(user.organisationId, dto);
@@ -44,7 +44,7 @@ export class RosterController {
 
   @Post("bulk")
   @UseGuards(RolesGuard)
-  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_TRANSPORT_MANAGER, PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR)
   @Audited({ action: "ROSTER_ENTRY_UPSERTED", resourceType: "RosterEntry" })
   bulkUpsert(@CurrentUser() user: AuthenticatedUser, @Body() dto: BulkUpsertRosterDto) {
     return this.roster.bulkUpsert(user, dto);

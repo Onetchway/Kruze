@@ -12,7 +12,12 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { AuthenticatedUser } from "../common/request-context";
 import { Audited } from "../audit/audited.decorator";
 
-const EMPLOYEE_ADMIN_ROLES = [PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_HR];
+const EMPLOYEE_ADMIN_ROLES = [
+  PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+  PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+  PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+  PlatformRole.CORPORATE_HR,
+];
 
 @Controller("employees")
 export class EmployeeController {

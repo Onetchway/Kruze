@@ -16,6 +16,16 @@ export class CorporateUserController {
   constructor(private readonly corporateUsers: CorporateUserService) {}
 
   @Get()
+  @Roles(
+    PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+    PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+    PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+    PlatformRole.CORPORATE_MANAGEMENT,
+    PlatformRole.CORPORATE_HR,
+    PlatformRole.CORPORATE_FINANCE,
+    PlatformRole.CORPORATE_SAFETY_COMPLIANCE,
+    PlatformRole.AUDITOR,
+  )
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.corporateUsers.listMembers(user.organisationId);
   }

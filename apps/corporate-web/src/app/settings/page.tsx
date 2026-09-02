@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, CorporateSettings, CorporateMember } from "@/lib/api";
+import { api, ApiError, CorporateSettings, CorporateMember, Organisation } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function toDateInput(value: string | null): string {
@@ -10,20 +10,24 @@ function toDateInput(value: string | null): string {
 }
 
 const INVITABLE_ROLES = [
-  { value: "CORPORATE_TRANSPORT_ADMIN", label: "Transport Admin" },
+  { value: "CORPORATE_TRANSPORT_ADMIN", label: "Corporate Super Admin" },
+  { value: "CORPORATE_TRANSPORT_MANAGER", label: "Transport Manager" },
+  { value: "CORPORATE_TRANSPORT_SUPERVISOR", label: "Transport Supervisor" },
   { value: "CORPORATE_HR", label: "HR Admin" },
   { value: "CORPORATE_FINANCE", label: "Finance Manager" },
   { value: "CORPORATE_SAFETY_COMPLIANCE", label: "Safety / Compliance Manager" },
+  { value: "CORPORATE_MANAGEMENT", label: "Management / Executive" },
   { value: "AUDITOR", label: "Auditor" },
 ];
 
-const TABS = ["Company", "Contract", "Transport Policy", "Notifications", "Users & Roles"] as const;
+const TABS = ["Organisation", "Company", "Contract", "Transport Policy", "Notifications", "Users & Roles"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function SettingsPage() {
   const { session } = useAuth();
   const [tab, setTab] = useState<Tab>("Company");
   const [settings, setSettings] = useState<CorporateSettings | null>(null);
+  const [org, setOrg] = useState<Organisation | null>(null);
   const [form, setForm] = useState({
     address: "",
     contactPersonName: "",
@@ -82,6 +86,10 @@ export default function SettingsPage() {
   }
 
   useEffect(loadSettings, [session]);
+  useEffect(() => {
+    if (!session) return;
+    api.getMyOrganisation(session.accessToken).then(setOrg).catch(() => {});
+  }, [session]);
   useEffect(loadMembers, [session]);
 
   async function handleSaveCompany(e: React.FormEvent) {
@@ -192,6 +200,42 @@ export default function SettingsPage() {
         ))}
       </div>
       {error && tab !== "Users & Roles" && <p className="error-text">{error}</p>}
+
+      {tab === "Organisation" && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Organisation</h3>
+          <table>
+            <tbody>
+              <tr>
+                <td style={{ color: "var(--text-muted)" }}>Legal name</td>
+                <td>{org?.legalName ?? "—"}</td>
+              </tr>
+              <tr>
+                <td style={{ color: "var(--text-muted)" }}>Display name</td>
+                <td>{org?.displayName ?? "—"}</td>
+              </tr>
+              <tr>
+                <td style={{ color: "var(--text-muted)" }}>Kruze ID</td>
+                <td>{org?.globalOrgId ?? "—"}</td>
+              </tr>
+              <tr>
+                <td style={{ color: "var(--text-muted)" }}>Status</td>
+                <td>
+                  <span className="badge">{org?.status ?? "—"}</span>
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: "var(--text-muted)" }}>Roles</td>
+                <td>{org?.roles?.join(", ") ?? "—"}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 12 }}>
+            Sites, cities, timezone, and branding are managed by Kruze platform support — contact your Kruze account
+            team to change them.
+          </p>
+        </div>
+      )}
 
       {tab === "Company" && (
         <div className="card">

@@ -17,12 +17,16 @@ export default function AnalyticsPage() {
   const [vendorPerf, setVendorPerf] = useState<VendorAnalytics | null>(null);
   const [compliance, setCompliance] = useState<ComplianceSummaryRow[]>([]);
   const [sustainability, setSustainability] = useState<SustainabilityDashboard | null>(null);
+  const [fleet, setFleet] = useState<{ vehiclesUsed: number; evVehiclesUsed: number; totalDistanceKm: number; tripsByVehicleType: Record<string, number> } | null>(null);
+  const [safety, setSafety] = useState<{ totalIncidents: number; incidentsByCategory: Record<string, number>; sosCount: number; noShowCount: number } | null>(null);
 
   useEffect(() => {
     if (!session) return;
     api.corporateAnalytics(session.accessToken).then(setCorp).catch(() => {});
     api.complianceSummary(session.accessToken).then(setCompliance).catch(() => {});
     api.sustainabilityDashboard(session.accessToken).then(setSustainability).catch(() => {});
+    api.fleetAnalytics(session.accessToken).then(setFleet).catch(() => {});
+    api.safetyAnalytics(session.accessToken).then(setSafety).catch(() => {});
     api.listRelationships(session.accessToken).then((rels) => {
       const active = rels.filter((r) => r.type === "CORPORATE_VENDOR" && r.status === "ACTIVE");
       setVendors(active);
@@ -135,6 +139,78 @@ export default function AnalyticsPage() {
               <div className="label">Incidents</div>
             </div>
           </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Fleet</h3>
+        <div className="stat-row">
+          <div className="stat-tile">
+            <div className="value">{fleet?.vehiclesUsed ?? "—"}</div>
+            <div className="label">Vehicles used</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{fleet?.evVehiclesUsed ?? "—"}</div>
+            <div className="label">EV vehicles used</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{(fleet?.totalDistanceKm ?? 0).toFixed(0)} km</div>
+            <div className="label">Total distance</div>
+          </div>
+        </div>
+        {fleet && Object.keys(fleet.tripsByVehicleType).length > 0 && (
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Vehicle type</th>
+                <th>Assignments</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(fleet.tripsByVehicleType).map(([type, count]) => (
+                <tr key={type}>
+                  <td>{type}</td>
+                  <td>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Safety</h3>
+        <div className="stat-row">
+          <div className={`stat-tile ${(safety?.sosCount ?? 0) > 0 ? "warning" : ""}`}>
+            <div className="value">{safety?.sosCount ?? 0}</div>
+            <div className="label">SOS</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{safety?.totalIncidents ?? 0}</div>
+            <div className="label">Total incidents</div>
+          </div>
+          <div className={`stat-tile ${(safety?.noShowCount ?? 0) > 0 ? "warning" : ""}`}>
+            <div className="value">{safety?.noShowCount ?? 0}</div>
+            <div className="label">No-shows</div>
+          </div>
+        </div>
+        {safety && Object.keys(safety.incidentsByCategory).length > 0 && (
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(safety.incidentsByCategory).map(([cat, count]) => (
+                <tr key={cat}>
+                  <td>{cat.replaceAll("_", " ")}</td>
+                  <td>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 

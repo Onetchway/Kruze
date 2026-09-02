@@ -362,6 +362,7 @@ export interface Contract {
   status: string;
   startsAt: string;
   endsAt: string | null;
+  slaTargets: { targetPercent?: number; penaltyDescription?: string } | null;
   rateCards: RateCard[];
 }
 
@@ -538,8 +539,10 @@ export const api = {
   removeZone: (token: string, id: string) => apiFetch<Zone>(`/zones/${id}`, { method: "DELETE", token }),
 
   listContracts: (token: string) => apiFetch<Contract[]>("/contracts", { token }),
-  createContract: (token: string, input: { vendorOrgId: string; startsAt: string; endsAt?: string }) =>
-    apiFetch<Contract>("/contracts", { method: "POST", body: input, token }),
+  createContract: (
+    token: string,
+    input: { vendorOrgId: string; startsAt: string; endsAt?: string; slaTargets?: { targetPercent?: number; penaltyDescription?: string } },
+  ) => apiFetch<Contract>("/contracts", { method: "POST", body: input, token }),
   activateContract: (token: string, id: string) =>
     apiFetch<Contract>(`/contracts/${id}/activate`, { method: "POST", token }),
   addRateCard: (

@@ -5,7 +5,16 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, Organisation } from "@/lib/api";
 
-const CORPORATE_ROLES = ["CORPORATE_TRANSPORT_ADMIN", "CORPORATE_HR"];
+const CORPORATE_ROLES = [
+  "CORPORATE_TRANSPORT_ADMIN",
+  "CORPORATE_TRANSPORT_MANAGER",
+  "CORPORATE_TRANSPORT_SUPERVISOR",
+  "CORPORATE_MANAGEMENT",
+  "CORPORATE_HR",
+  "CORPORATE_FINANCE",
+  "CORPORATE_SAFETY_COMPLIANCE",
+  "AUDITOR",
+];
 const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
 
 interface NavLeaf {
@@ -106,9 +115,21 @@ function navTreeForRole(role: string): NavEntry[] {
 function roleLabel(role: string): string {
   switch (role) {
     case "CORPORATE_TRANSPORT_ADMIN":
-      return "Transport Admin";
+      return "Corporate Super Admin";
+    case "CORPORATE_TRANSPORT_MANAGER":
+      return "Transport Manager";
+    case "CORPORATE_TRANSPORT_SUPERVISOR":
+      return "Transport Supervisor";
+    case "CORPORATE_MANAGEMENT":
+      return "Management / Executive";
     case "CORPORATE_HR":
       return "HR Admin";
+    case "CORPORATE_FINANCE":
+      return "Finance Manager";
+    case "CORPORATE_SAFETY_COMPLIANCE":
+      return "Safety / Compliance Manager";
+    case "AUDITOR":
+      return "Auditor";
     case "VENDOR_ADMIN":
       return "Vendor Admin";
     case "FLEET_OPERATOR_ADMIN":
