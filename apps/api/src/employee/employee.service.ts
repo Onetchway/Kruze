@@ -34,16 +34,59 @@ export class EmployeeService {
     });
   }
 
-  listForCorporate(corporateOrgId: string) {
-    return this.prisma.employee.findMany({
+  /**
+   * The Employees list needs Location/Pickup/Vendor/Current-Trip columns
+   * without an N+1 query per row: one query for employees (+ shift +
+   * pickupLocation), one batched query for today's trip-employee rows
+   * across all of them, merged in memory.
+   */
+  async listForCorporate(corporateOrgId: string) {
+    const employees = await this.prisma.employee.findMany({
       where: { corporateOrgId, status: "ACTIVE" },
-      include: { shift: true },
+      include: { shift: true, pickupLocation: true },
       orderBy: { createdAt: "desc" },
+    });
+
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const todaysTripEmployees = employees.length
+      ? await this.prisma.tripEmployee.findMany({
+          where: {
+            employeeId: { in: employees.map((e) => e.id) },
+            trip: { scheduledStartAt: { gte: dayStart, lt: dayEnd }, status: { notIn: ["CANCELLED", "FAILED"] } },
+          },
+          include: {
+            trip: { select: { id: true, globalTripId: true, status: true, scheduledStartAt: true, vendorOrg: true } },
+            pickupStop: { select: { plannedEta: true } },
+          },
+        })
+      : [];
+    const tripByEmployeeId = new Map(todaysTripEmployees.map((te) => [te.employeeId, te]));
+
+    return employees.map((e) => {
+      const te = tripByEmployeeId.get(e.id);
+      return {
+        ...e,
+        currentTrip: te
+          ? {
+              id: te.trip.id,
+              globalTripId: te.trip.globalTripId,
+              status: te.trip.status,
+              vendorOrg: te.trip.vendorOrg,
+              pickupEta: te.pickupStop?.plannedEta ?? null,
+            }
+          : null,
+      };
     });
   }
 
   async getForOrganisation(actor: AuthenticatedUser, employeeId: string) {
-    const employee = await this.prisma.employee.findUnique({ where: { id: employeeId }, include: { shift: true } });
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { shift: true, pickupLocation: true },
+    });
     if (!employee) {
       throw new NotFoundException("Employee not found");
     }
@@ -73,6 +116,73 @@ export class EmployeeService {
       orderBy: { trip: { scheduledStartAt: "desc" } },
     });
     return tripEmployee?.trip ?? null;
+  }
+
+  /** Edit an employee's own profile fields — location, contact, requirements, shift, etc. */
+  async update(
+    actor: AuthenticatedUser,
+    employeeId: string,
+    input: {
+      fullName?: string;
+      gender?: string;
+      phone?: string;
+      email?: string;
+      department?: string;
+      costCentre?: string;
+      homeLatitude?: number;
+      homeLongitude?: number;
+      officeLabel?: string;
+      shiftId?: string;
+      pickupLocationId?: string;
+      emergencyContactName?: string;
+      emergencyContactPhone?: string;
+      specialRequirements?: string[];
+    },
+  ) {
+    await this.getForOrganisation(actor, employeeId);
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: input,
+      include: { shift: true, pickupLocation: true },
+    });
+  }
+
+  /**
+   * Distinct from enable/disable transport (which flips account `status`):
+   * this records whether the employee is eligible for transport at all
+   * (distance/zone/policy-driven) and why, and is a separate corporate
+   * decision from whether the account is active.
+   */
+  async setTransportEligibility(
+    actor: AuthenticatedUser,
+    employeeId: string,
+    input: { transportEligible: boolean; eligibilityReason?: string },
+  ) {
+    await this.getForOrganisation(actor, employeeId);
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: { transportEligible: input.transportEligible, eligibilityReason: input.eligibilityReason },
+    });
+  }
+
+  /** Past trips this employee has been booked on — the booking/trip history view. */
+  async tripHistory(actor: AuthenticatedUser, employeeId: string, limit = 50) {
+    await this.getForOrganisation(actor, employeeId);
+    const tripEmployees = await this.prisma.tripEmployee.findMany({
+      where: { employeeId },
+      include: {
+        trip: {
+          include: {
+            shift: true,
+            vendorOrg: true,
+            assignments: { where: { status: "ACTIVE" }, include: { driver: true, vehicle: true, guard: true } },
+          },
+        },
+      },
+      orderBy: { trip: { scheduledStartAt: "desc" } },
+      take: limit,
+    });
+    return tripEmployees.map((te) => ({ tripEmployeeStatus: te.status, ...te.trip }));
   }
 
   async deactivate(actor: AuthenticatedUser, employeeId: string) {

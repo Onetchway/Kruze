@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { PlatformRole } from "@kruze/domain";
 import { ApiOperation } from "@nestjs/swagger";
 import { EmployeeService } from "./employee.service";
 import { CreateEmployeeDto } from "./dto/create-employee.dto";
+import { UpdateEmployeeDto } from "./dto/update-employee.dto";
+import { SetTransportEligibilityDto } from "./dto/set-transport-eligibility.dto";
 import { EmployeeSignupDto } from "./dto/employee-signup.dto";
 import { ApproveEmployeeSignupDto, RejectEmployeeSignupDto } from "./dto/decide-employee-signup.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -91,6 +93,28 @@ export class EmployeeController {
   @UseGuards(JwtAuthGuard)
   currentTripToday(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.employees.currentTripToday(user, id);
+  }
+
+  @Get(":id/trips")
+  @UseGuards(JwtAuthGuard)
+  tripHistory(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.employees.tripHistory(user, id);
+  }
+
+  @Patch(":id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...EMPLOYEE_ADMIN_ROLES)
+  @Audited({ action: "EMPLOYEE_UPDATED", resourceType: "Employee" })
+  update(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: UpdateEmployeeDto) {
+    return this.employees.update(user, id, dto);
+  }
+
+  @Post(":id/approve-transport")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...EMPLOYEE_ADMIN_ROLES)
+  @Audited({ action: "EMPLOYEE_TRANSPORT_ELIGIBILITY_SET", resourceType: "Employee" })
+  approveTransport(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: SetTransportEligibilityDto) {
+    return this.employees.setTransportEligibility(user, id, dto);
   }
 
   @Post(":id/deactivate")

@@ -1,19 +1,19 @@
 import { IsArray, IsBoolean, IsEmail, IsNumber, IsOptional, IsString, MinLength } from "class-validator";
 
-export class CreateEmployeeDto {
-  @IsString()
-  employeeCode!: string;
-
+/** Partial edit of an employee's own profile fields — never touches status/eligibility (see separate actions). */
+export class UpdateEmployeeDto {
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  fullName!: string;
+  fullName?: string;
 
   @IsOptional()
   @IsString()
   gender?: string;
 
+  @IsOptional()
   @IsString()
-  phone!: string;
+  phone?: string;
 
   @IsOptional()
   @IsEmail()
@@ -59,12 +59,4 @@ export class CreateEmployeeDto {
   @IsArray()
   @IsString({ each: true })
   specialRequirements?: string[];
-
-  @IsOptional()
-  @IsBoolean()
-  transportEligible?: boolean;
-
-  @IsOptional()
-  @IsString()
-  eligibilityReason?: string;
 }
