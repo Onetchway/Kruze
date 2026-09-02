@@ -279,17 +279,29 @@ export interface Vehicle {
   rangeKm: number | null;
 }
 
-export interface NotificationSettings {
+export interface NotificationChannelSet {
   push?: boolean;
   sms?: boolean;
   whatsapp?: boolean;
   email?: boolean;
+  phoneEscalation?: boolean;
+}
+
+export interface NotificationSettings {
+  employee?: NotificationChannelSet;
+  driver?: NotificationChannelSet;
+  supervisor?: NotificationChannelSet;
+  emergency?: NotificationChannelSet;
 }
 
 export interface TransportPolicy {
   defaultCutoffMinutes?: number;
   allowEmployeeSelfCancel?: boolean;
-  maxTripDetourMinutes?: number;
+  maxRideTimeMinutes?: number;
+  cancellationCutoffMinutes?: number;
+  allowedVehicleCategories?: string[];
+  autoPlanningEnabled?: boolean;
+  manualApprovalHeadcountThreshold?: number;
 }
 
 export interface CorporateSettings {
@@ -303,6 +315,12 @@ export interface CorporateSettings {
   paymentTerms: string | null;
   employeePickupChangeLimit: number;
   config: { notificationSettings?: NotificationSettings; transportPolicy?: TransportPolicy } | null;
+}
+
+export interface CorporatePermission {
+  action: string;
+  description: string;
+  roles: string[];
 }
 
 export interface CorporateMember {
@@ -507,6 +525,7 @@ export const api = {
   ) => apiFetch<CorporateSettings>("/corporate/settings", { method: "PUT", body: input, token }),
 
   listCorporateUsers: (token: string) => apiFetch<CorporateMember[]>("/corporate/users", { token }),
+  listRolePermissions: (token: string) => apiFetch<CorporatePermission[]>("/corporate/role-permissions", { token }),
   inviteCorporateUser: (token: string, input: { email: string; displayName: string; role: string }) =>
     apiFetch<{ membership: CorporateMember; temporaryPassword: string | null }>("/corporate/users", {
       method: "POST",

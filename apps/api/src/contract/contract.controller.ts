@@ -17,7 +17,7 @@ export class ContractController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_FINANCE)
   @Audited({ action: "CONTRACT_CREATED", resourceType: "Contract" })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateContractDto) {
     return this.contracts.create(user, dto);
@@ -25,7 +25,7 @@ export class ContractController {
 
   @Post(":id/activate")
   @UseGuards(RolesGuard)
-  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_FINANCE)
   @Audited({ action: "CONTRACT_ACTIVATED", resourceType: "Contract" })
   activate(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.contracts.activate(user, id);

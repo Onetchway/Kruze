@@ -9,13 +9,26 @@ import { Audited } from "../audit/audited.decorator";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AuthenticatedUser } from "../common/request-context";
 
+const LOCATION_WRITE_ROLES = [
+  PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+  PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+  PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+];
+
 @Controller("locations")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+@Roles(...LOCATION_WRITE_ROLES)
 export class LocationController {
   constructor(private readonly locations: LocationService) {}
 
   @Get()
+  @Roles(
+    PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+    PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+    PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+    PlatformRole.CORPORATE_MANAGEMENT,
+    PlatformRole.CORPORATE_HR,
+  )
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.locations.listForOrganisation(user.organisationId);
   }
@@ -27,6 +40,7 @@ export class LocationController {
   }
 
   @Delete(":id")
+  @Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_TRANSPORT_MANAGER)
   @Audited({ action: "LOCATION_DEACTIVATED", resourceType: "Location" })
   remove(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
     return this.locations.remove(user.organisationId, id);

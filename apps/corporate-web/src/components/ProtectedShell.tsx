@@ -103,7 +103,8 @@ function navTreeForRole(role: string): NavEntry[] {
       icon: "💰",
       children: [
         { href: "/contracts", label: "Contracts" },
-        { href: "/invoices", label: "Invoices & Reconciliation" },
+        { href: "/invoices", label: "Invoices" },
+        { href: "/reconciliation", label: "Reconciliation" },
       ],
     },
     { href: "/analytics", label: "Analytics", icon: "📈" },

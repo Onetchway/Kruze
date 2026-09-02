@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards } from "@nestjs/common";
-import { PlatformRole } from "@kruze/domain";
+import { PlatformRole, CORPORATE_PERMISSION_MATRIX } from "@kruze/domain";
 import { CorporateService } from "./corporate.service";
 import { UpdateCorporateSettingsDto } from "./dto/update-corporate-settings.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -8,6 +8,16 @@ import { Roles } from "../authz/roles.decorator";
 import { Audited } from "../audit/audited.decorator";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AuthenticatedUser } from "../common/request-context";
+
+/** Not sensitive — any authenticated corporate user may see the role/permission matrix that governs their own portal. */
+@Controller("corporate/role-permissions")
+@UseGuards(JwtAuthGuard)
+export class CorporateRolePermissionsController {
+  @Get()
+  list() {
+    return CORPORATE_PERMISSION_MATRIX;
+  }
+}
 
 @Controller("corporate/settings")
 @UseGuards(JwtAuthGuard, RolesGuard)

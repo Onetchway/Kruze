@@ -2,12 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, CorporateSettings, CorporateMember, Organisation } from "@/lib/api";
+import { api, ApiError, CorporateSettings, CorporateMember, Organisation, NotificationChannelSet, CorporatePermission } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function toDateInput(value: string | null): string {
   return value ? value.slice(0, 10) : "";
 }
+
+const VEHICLE_CATEGORIES = ["SEDAN", "SUV", "VAN", "MINIBUS", "BUS"];
+const RECIPIENT_TYPES = ["employee", "driver", "supervisor", "emergency"] as const;
+const RECIPIENT_LABELS: Record<(typeof RECIPIENT_TYPES)[number], string> = {
+  employee: "Employee",
+  driver: "Driver",
+  supervisor: "Supervisor",
+  emergency: "Emergency",
+};
+const DEFAULT_CHANNELS: NotificationChannelSet = { push: true, sms: false, whatsapp: false, email: false, phoneEscalation: false };
 
 const INVITABLE_ROLES = [
   { value: "CORPORATE_TRANSPORT_ADMIN", label: "Corporate Super Admin" },
@@ -20,7 +30,7 @@ const INVITABLE_ROLES = [
   { value: "AUDITOR", label: "Auditor" },
 ];
 
-const TABS = ["Organisation", "Company", "Contract", "Transport Policy", "Notifications", "Users & Roles"] as const;
+const TABS = ["Organisation", "Company", "Contract", "Transport Policy", "Notifications", "Users & Roles", "Roles & Permissions"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function SettingsPage() {
@@ -38,18 +48,26 @@ export default function SettingsPage() {
     paymentTerms: "",
     employeePickupChangeLimit: 1,
   });
-  const [notifyPush, setNotifyPush] = useState(true);
-  const [notifySms, setNotifySms] = useState(true);
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [channels, setChannels] = useState<Record<(typeof RECIPIENT_TYPES)[number], NotificationChannelSet>>({
+    employee: { ...DEFAULT_CHANNELS },
+    driver: { ...DEFAULT_CHANNELS },
+    supervisor: { ...DEFAULT_CHANNELS },
+    emergency: { ...DEFAULT_CHANNELS },
+  });
   const [cutoffMinutes, setCutoffMinutes] = useState(30);
   const [allowSelfCancel, setAllowSelfCancel] = useState(true);
+  const [maxRideTimeMinutes, setMaxRideTimeMinutes] = useState(60);
+  const [cancellationCutoffMinutes, setCancellationCutoffMinutes] = useState(60);
+  const [allowedVehicleCategories, setAllowedVehicleCategories] = useState<string[]>(VEHICLE_CATEGORIES);
+  const [autoPlanningEnabled, setAutoPlanningEnabled] = useState(true);
+  const [manualApprovalHeadcountThreshold, setManualApprovalHeadcountThreshold] = useState<number | "">("");
 
   const [members, setMembers] = useState<CorporateMember[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState(INVITABLE_ROLES[0].value);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<CorporatePermission[]>([]);
 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -70,13 +88,20 @@ export default function SettingsPage() {
         employeePickupChangeLimit: s.employeePickupChangeLimit,
       });
       const notif = s.config?.notificationSettings;
-      setNotifyPush(notif?.push ?? true);
-      setNotifySms(notif?.sms ?? true);
-      setNotifyWhatsapp(notif?.whatsapp ?? false);
-      setNotifyEmail(notif?.email ?? true);
+      setChannels({
+        employee: { ...DEFAULT_CHANNELS, ...notif?.employee },
+        driver: { ...DEFAULT_CHANNELS, ...notif?.driver },
+        supervisor: { ...DEFAULT_CHANNELS, ...notif?.supervisor },
+        emergency: { ...DEFAULT_CHANNELS, sms: true, phoneEscalation: true, ...notif?.emergency },
+      });
       const policy = s.config?.transportPolicy;
       setCutoffMinutes(policy?.defaultCutoffMinutes ?? 30);
       setAllowSelfCancel(policy?.allowEmployeeSelfCancel ?? true);
+      setMaxRideTimeMinutes(policy?.maxRideTimeMinutes ?? 60);
+      setCancellationCutoffMinutes(policy?.cancellationCutoffMinutes ?? 60);
+      setAllowedVehicleCategories(policy?.allowedVehicleCategories ?? VEHICLE_CATEGORIES);
+      setAutoPlanningEnabled(policy?.autoPlanningEnabled ?? true);
+      setManualApprovalHeadcountThreshold(policy?.manualApprovalHeadcountThreshold ?? "");
     }).catch(() => {});
   }
 
@@ -91,6 +116,10 @@ export default function SettingsPage() {
     api.getMyOrganisation(session.accessToken).then(setOrg).catch(() => {});
   }, [session]);
   useEffect(loadMembers, [session]);
+  useEffect(() => {
+    if (!session) return;
+    api.listRolePermissions(session.accessToken).then(setPermissions).catch(() => {});
+  }, [session]);
 
   async function handleSaveCompany(e: React.FormEvent) {
     e.preventDefault();
@@ -125,7 +154,7 @@ export default function SettingsPage() {
     setSaved(false);
     try {
       const updated = await api.updateCorporateSettings(session.accessToken, {
-        config: { notificationSettings: { push: notifyPush, sms: notifySms, whatsapp: notifyWhatsapp, email: notifyEmail } },
+        config: { notificationSettings: channels },
       });
       setSettings(updated);
       setSaved(true);
@@ -143,7 +172,17 @@ export default function SettingsPage() {
     setSaved(false);
     try {
       const updated = await api.updateCorporateSettings(session.accessToken, {
-        config: { transportPolicy: { defaultCutoffMinutes: cutoffMinutes, allowEmployeeSelfCancel: allowSelfCancel } },
+        config: {
+          transportPolicy: {
+            defaultCutoffMinutes: cutoffMinutes,
+            allowEmployeeSelfCancel: allowSelfCancel,
+            maxRideTimeMinutes,
+            cancellationCutoffMinutes,
+            allowedVehicleCategories,
+            autoPlanningEnabled,
+            manualApprovalHeadcountThreshold: manualApprovalHeadcountThreshold === "" ? undefined : manualApprovalHeadcountThreshold,
+          },
+        },
       });
       setSettings(updated);
       setSaved(true);
@@ -152,6 +191,17 @@ export default function SettingsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleVehicleCategory(cat: string) {
+    setAllowedVehicleCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  }
+
+  function toggleChannel(recipient: (typeof RECIPIENT_TYPES)[number], channel: keyof NotificationChannelSet) {
+    setChannels((prev) => ({
+      ...prev,
+      [recipient]: { ...prev[recipient], [channel]: !prev[recipient][channel] },
+    }));
   }
 
   async function handleInvite() {
@@ -312,26 +362,75 @@ export default function SettingsPage() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Transport policy</h3>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div className="field" style={{ marginBottom: 0, maxWidth: 260 }}>
-              <label>Default booking cut-off (minutes before shift start)</label>
+            <div className="field" style={{ marginBottom: 0, maxWidth: 220 }}>
+              <label>Booking cut-off (min before shift)</label>
               <input type="number" min={0} value={cutoffMinutes} onChange={(e) => setCutoffMinutes(Number(e.target.value))} />
             </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={allowSelfCancel}
-                  onChange={(e) => setAllowSelfCancel(e.target.checked)}
-                  style={{ width: "auto", marginRight: 6, verticalAlign: "middle" }}
-                />
-                Employees may cancel their own roster entry
-              </label>
+            <div className="field" style={{ marginBottom: 0, maxWidth: 220 }}>
+              <label>Cancellation cut-off (min before pickup)</label>
+              <input type="number" min={0} value={cancellationCutoffMinutes} onChange={(e) => setCancellationCutoffMinutes(Number(e.target.value))} />
+            </div>
+            <div className="field" style={{ marginBottom: 0, maxWidth: 220 }}>
+              <label>Maximum ride time (minutes)</label>
+              <input type="number" min={0} value={maxRideTimeMinutes} onChange={(e) => setMaxRideTimeMinutes(Number(e.target.value))} />
+            </div>
+            <div className="field" style={{ marginBottom: 0, maxWidth: 260 }}>
+              <label>Manual-approval headcount threshold (optional)</label>
+              <input
+                type="number"
+                min={0}
+                placeholder="e.g. 500 — plans above this need manual approval"
+                value={manualApprovalHeadcountThreshold}
+                onChange={(e) => setManualApprovalHeadcountThreshold(e.target.value === "" ? "" : Number(e.target.value))}
+              />
             </div>
           </div>
-          <button onClick={handleSaveTransportPolicy} disabled={busy} style={{ marginTop: 12 }}>
+
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 13, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>Allowed vehicle categories</label>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {VEHICLE_CATEGORIES.map((cat) => (
+                <label key={cat} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={allowedVehicleCategories.includes(cat)}
+                    onChange={() => toggleVehicleCategory(cat)}
+                    style={{ width: "auto" }}
+                  />
+                  {cat}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={allowSelfCancel}
+                onChange={(e) => setAllowSelfCancel(e.target.checked)}
+                style={{ width: "auto" }}
+              />
+              Employees may cancel their own roster entry
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={autoPlanningEnabled}
+                onChange={(e) => setAutoPlanningEnabled(e.target.checked)}
+                style={{ width: "auto" }}
+              />
+              Auto-planning enabled (Kruze plans automatically; disable to require manual planning)
+            </label>
+          </div>
+
+          <button onClick={handleSaveTransportPolicy} disabled={busy} style={{ marginTop: 16 }}>
             Save
           </button>
           {saved && <span style={{ marginLeft: 12, color: "var(--text-muted)" }}>Saved.</span>}
+          <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 12 }}>
+            Vendor rules and driver requirements are configured via Compliance → Required documents by resource type.
+          </p>
         </div>
       )}
 
@@ -339,23 +438,102 @@ export default function SettingsPage() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Notification channels</h3>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            Which channels Kruze uses to reach employees, drivers, and guards for trip and safety alerts.
+            Which channels Kruze uses to reach each recipient type for trip and safety alerts.
           </p>
-          {[
-            { key: "push", label: "Push (app)", value: notifyPush, set: setNotifyPush },
-            { key: "sms", label: "SMS", value: notifySms, set: setNotifySms },
-            { key: "whatsapp", label: "WhatsApp (requires Integrations setup)", value: notifyWhatsapp, set: setNotifyWhatsapp },
-            { key: "email", label: "Email", value: notifyEmail, set: setNotifyEmail },
-          ].map((c) => (
-            <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
-              <input type="checkbox" checked={c.value} onChange={(e) => c.set(e.target.checked)} style={{ width: "auto" }} />
-              {c.label}
-            </label>
-          ))}
-          <button onClick={handleSaveNotifications} disabled={busy} style={{ marginTop: 8 }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Recipient</th>
+                <th>Push</th>
+                <th>SMS</th>
+                <th>WhatsApp</th>
+                <th>Email</th>
+                <th>Phone escalation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RECIPIENT_TYPES.map((recipient) => (
+                <tr key={recipient}>
+                  <td>{RECIPIENT_LABELS[recipient]}</td>
+                  {(["push", "sms", "whatsapp", "email"] as const).map((channel) => (
+                    <td key={channel}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(channels[recipient][channel])}
+                        onChange={() => toggleChannel(recipient, channel)}
+                        style={{ width: "auto" }}
+                      />
+                    </td>
+                  ))}
+                  <td>
+                    {recipient === "emergency" ? (
+                      <input
+                        type="checkbox"
+                        checked={Boolean(channels[recipient].phoneEscalation)}
+                        onChange={() => toggleChannel(recipient, "phoneEscalation")}
+                        style={{ width: "auto" }}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button onClick={handleSaveNotifications} disabled={busy} style={{ marginTop: 12 }}>
             Save
           </button>
           {saved && <span style={{ marginLeft: 12, color: "var(--text-muted)" }}>Saved.</span>}
+          <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 12 }}>
+            WhatsApp and phone escalation require the corresponding provider under Integrations.
+          </p>
+        </div>
+      )}
+
+      {tab === "Roles & Permissions" && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Roles &amp; Permissions</h3>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+            What each role can do in this portal — this reflects the actual server-side access control, not just a
+            description.
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  {INVITABLE_ROLES.map((r) => (
+                    <th key={r.value} style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                      {r.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {permissions.map((p) => (
+                  <tr key={p.action}>
+                    <td style={{ minWidth: 220 }}>
+                      {p.action}
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.description}</div>
+                    </td>
+                    {INVITABLE_ROLES.map((r) => (
+                      <td key={r.value} style={{ textAlign: "center" }}>
+                        {p.roles.includes(r.value) ? "✓" : ""}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {permissions.length === 0 && (
+                  <tr>
+                    <td colSpan={INVITABLE_ROLES.length + 1} style={{ color: "var(--text-muted)" }}>
+                      Loading…
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

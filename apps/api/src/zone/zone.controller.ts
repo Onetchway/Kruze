@@ -11,11 +11,18 @@ import { AuthenticatedUser } from "../common/request-context";
 
 @Controller("zones")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+@Roles(PlatformRole.CORPORATE_TRANSPORT_ADMIN, PlatformRole.CORPORATE_TRANSPORT_MANAGER)
 export class ZoneController {
   constructor(private readonly zones: ZoneService) {}
 
   @Get()
+  @Roles(
+    PlatformRole.CORPORATE_TRANSPORT_ADMIN,
+    PlatformRole.CORPORATE_TRANSPORT_MANAGER,
+    PlatformRole.CORPORATE_TRANSPORT_SUPERVISOR,
+    PlatformRole.CORPORATE_MANAGEMENT,
+    PlatformRole.CORPORATE_FINANCE,
+  )
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.zones.listForOrganisation(user.organisationId);
   }
