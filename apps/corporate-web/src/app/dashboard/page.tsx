@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, Shift, TransportPlan, PlanException } from "@/lib/api";
+import { api, ApiError, Employee, Shift, Trip, TransportPlan, PlanException, Organisation, CorporateAnalytics } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isToday(iso: string): boolean {
+  return iso.slice(0, 10) === todayIso();
 }
 
 export default function DashboardPage() {
@@ -19,6 +23,14 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [org, setOrg] = useState<Organisation | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [todaysTrips, setTodaysTrips] = useState<Trip[]>([]);
+  const [openExceptionsAll, setOpenExceptionsAll] = useState<(PlanException & { plan: { planDate: string; shift: Shift } })[]>([]);
+  const [safetyIncidents, setSafetyIncidents] = useState<{ sos: number }>({ sos: 0 });
+  const [compliance, setCompliance] = useState<{ expiring: number }>({ expiring: 0 });
+  const [corpAnalytics, setCorpAnalytics] = useState<CorporateAnalytics | null>(null);
+
   useEffect(() => {
     if (!session) return;
     api
@@ -28,6 +40,18 @@ export default function DashboardPage() {
         if (list.length > 0) setShiftId((prev) => prev || list[0].id);
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load shifts"));
+
+    api.getMyOrganisation(session.accessToken).then(setOrg).catch(() => {});
+    api.listEmployees(session.accessToken).then(setEmployees).catch(() => {});
+    api.listTrips(session.accessToken).then((trips) => setTodaysTrips(trips.filter((t) => isToday(t.scheduledStartAt)))).catch(() => {});
+    api.allExceptions(session.accessToken, "OPEN").then(setOpenExceptionsAll).catch(() => {});
+    api.listIncidents(session.accessToken).then((all) =>
+      setSafetyIncidents({ sos: all.filter((i) => i.category === "SOS" && i.status !== "CLOSED").length }),
+    ).catch(() => {});
+    api.complianceSummary(session.accessToken).then((rows) =>
+      setCompliance({ expiring: rows.filter((r) => r.status === "EXPIRING").reduce((s, r) => s + r.count, 0) }),
+    ).catch(() => {});
+    api.corporateAnalytics(session.accessToken).then(setCorpAnalytics).catch(() => {});
   }, [session]);
 
   async function handleGenerate() {
@@ -63,11 +87,79 @@ export default function DashboardPage() {
   const openExceptions = exceptions.filter((e) => e.status === "OPEN");
   const meta = plan?.metadata;
 
+  const runningToday = todaysTrips.filter((t) => t.status === "RUNNING" || t.status === "EN_ROUTE_TO_FIRST_PICKUP").length;
+  const completedToday = todaysTrips.filter((t) => t.status === "COMPLETED").length;
+  const breakdownToday = todaysTrips.filter((t) => t.status === "BREAKDOWN").length;
+  const upcomingToday = todaysTrips.filter((t) => t.status === "SCHEDULED" || t.status === "RESOURCES_ASSIGNED" || t.status === "CREATED").length;
+
+  const criticalCount = safetyIncidents.sos + breakdownToday;
+  const attentionCount = compliance.expiring + openExceptionsAll.length;
+  const onTimePct = corpAnalytics?.onTimePerformance != null ? (corpAnalytics.onTimePerformance * 100).toFixed(1) : null;
+
   return (
     <ProtectedShell
-      title="Welcome back"
-      subtitle="The system plans automatically; you manage exceptions. Pick a shift and date, then generate today's plan."
+      title={`Good morning${org ? `, ${org.displayName}` : ""}`}
+      subtitle="Here's where things stand right now."
     >
+      {(criticalCount > 0 || attentionCount > 0 || onTimePct) && (
+        <div className="card">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {criticalCount > 0 && (
+              <div>
+                🔴 <strong>Critical:</strong>{" "}
+                {[
+                  safetyIncidents.sos > 0 ? `${safetyIncidents.sos} SOS active` : null,
+                  breakdownToday > 0 ? `${breakdownToday} vehicle${breakdownToday > 1 ? "s" : ""} broken down` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            )}
+            {attentionCount > 0 && (
+              <div>
+                🟠 <strong>Attention:</strong>{" "}
+                {[
+                  compliance.expiring > 0 ? `${compliance.expiring} compliance item${compliance.expiring > 1 ? "s" : ""} expiring soon` : null,
+                  openExceptionsAll.length > 0 ? `${openExceptionsAll.length} open planning exception${openExceptionsAll.length > 1 ? "s" : ""}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            )}
+            {onTimePct && criticalCount === 0 && (
+              <div>
+                🟢 <strong>Good:</strong> {onTimePct}% trips on-time over the last 30 days.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <h3>Today&apos;s Transport</h3>
+      <div className="stat-row">
+        <div className="stat-tile">
+          <div className="value">{employees.filter((e) => e.status === "ACTIVE").length}</div>
+          <div className="label">Employees</div>
+        </div>
+        <div className="stat-tile">
+          <div className="value">{todaysTrips.length}</div>
+          <div className="label">Trips planned</div>
+        </div>
+        <div className="stat-tile">
+          <div className="value">{completedToday}</div>
+          <div className="label">Trips completed</div>
+        </div>
+        <div className="stat-tile">
+          <div className="value">{runningToday}</div>
+          <div className="label">Trips running</div>
+        </div>
+        <div className="stat-tile">
+          <div className="value">{upcomingToday}</div>
+          <div className="label">Upcoming</div>
+        </div>
+      </div>
+
+      <h3>Auto Plan</h3>
       <div className="card">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div className="field" style={{ marginBottom: 0, minWidth: 200 }}>
