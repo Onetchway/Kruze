@@ -24,11 +24,12 @@ export class TrackingService {
   /**
    * Live-safety telemetry signals for a corporate's currently-running
    * trips: overspeed (a raw LocationEvent above the threshold in the last
-   * hour) and GPS-offline (no LocationEvent at all in the last 15 minutes
-   * for a trip that should be reporting). Route-deviation and other
-   * qualitative signals stay reported incidents (IncidentCategory) rather
-   * than derived here, since deviation needs a planned-path comparison
-   * this schema doesn't store yet.
+   * hour), GPS-offline (no LocationEvent at all in the last 15 minutes for
+   * a trip that should be reporting), delayed (running/en-route past its
+   * expected completion window), and a coarse route-deviation signal (the
+   * vehicle's latest point is unreasonably far from every planned stop on
+   * its own trip — a radius check, not true planned-path tracking, which
+   * this schema doesn't store).
    */
   async liveSafetySummary(corporateOrgId: string) {
     const OVERSPEED_THRESHOLD_KMH = 80;
@@ -38,11 +39,13 @@ export class TrackingService {
 
     const runningTrips = await this.prisma.trip.findMany({
       where: { corporateOrgId, status: { in: ["RUNNING", "EN_ROUTE_TO_FIRST_PICKUP"] } },
-      select: { id: true },
+      select: { id: true, scheduledStartAt: true, scheduledEndAt: true, stops: { select: { latitude: true, longitude: true } } },
     });
     const runningTripIds = runningTrips.map((t) => t.id);
+    const delayedCount = runningTrips.filter((t) => this.isDelayed(t)).length;
+
     if (runningTripIds.length === 0) {
-      return { overspeedCount: 0, gpsOfflineCount: 0, runningTrips: 0 };
+      return { overspeedCount: 0, gpsOfflineCount: 0, runningTrips: 0, delayedCount: 0, routeDeviationCount: 0 };
     }
 
     const overspeedEvents = await this.prisma.locationEvent.findMany({
@@ -59,7 +62,52 @@ export class TrackingService {
     const reportingSet = new Set(recentlyReportingTripIds.map((e) => e.tripId));
     const gpsOfflineCount = runningTripIds.filter((id) => !reportingSet.has(id)).length;
 
-    return { overspeedCount: overspeedEvents.length, gpsOfflineCount, runningTrips: runningTripIds.length };
+    const routeDeviationCount = await this.countRouteDeviations(runningTrips);
+
+    return { overspeedCount: overspeedEvents.length, gpsOfflineCount, runningTrips: runningTripIds.length, delayedCount, routeDeviationCount };
+  }
+
+  /**
+   * A trip is "delayed" once now passes its scheduled start plus expected
+   * duration and it hasn't finished. Expected duration uses scheduledEndAt
+   * when set; otherwise a fixed 90-minute buffer (no better duration
+   * signal exists on Trip/TripStop without a routing engine).
+   */
+  private isDelayed(trip: { scheduledStartAt: Date; scheduledEndAt: Date | null }): boolean {
+    const DEFAULT_BUFFER_MS = 90 * 60 * 1000;
+    const expectedEnd = trip.scheduledEndAt ?? new Date(trip.scheduledStartAt.getTime() + DEFAULT_BUFFER_MS);
+    return Date.now() > expectedEnd.getTime();
+  }
+
+  /**
+   * Coarse, honest deviation signal: for each running trip with planned
+   * stops, take its latest location point and check whether it's within a
+   * generous radius of ANY of that trip's own stops. Flags only the
+   * unambiguous case (nowhere near any planned stop) — not a substitute
+   * for real planned-path tracking.
+   */
+  private async countRouteDeviations(
+    runningTrips: { id: string; stops: { latitude: number; longitude: number }[] }[],
+  ): Promise<number> {
+    const DEVIATION_RADIUS_METERS = 3000;
+    const tripsWithStops = runningTrips.filter((t) => t.stops.length > 0);
+    if (tripsWithStops.length === 0) return 0;
+
+    let count = 0;
+    for (const trip of tripsWithStops) {
+      const latest = await this.prisma.locationEvent.findFirst({
+        where: { tripId: trip.id },
+        orderBy: { recordedAt: "desc" },
+      });
+      if (!latest) continue;
+      const minDistance = Math.min(
+        ...trip.stops.map((s) => haversineDistanceMeters({ latitude: s.latitude, longitude: s.longitude }, latest)),
+      );
+      if (minDistance > DEVIATION_RADIUS_METERS) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   async ingest(

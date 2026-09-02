@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { CreateTripDto } from "./dto/create-trip.dto";
 import { TransitionTripDto } from "./dto/transition-trip.dto";
 import { AssignTripDto } from "./dto/assign-trip.dto";
@@ -20,8 +20,16 @@ export class TripController {
   }
 
   @Get()
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.trips.listForOrganisation(user.organisationId);
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("status") status?: string,
+    @Query("vendorOrgId") vendorOrgId?: string,
+    @Query("shiftId") shiftId?: string,
+    @Query("driverId") driverId?: string,
+    @Query("vehicleId") vehicleId?: string,
+    @Query("officeLabel") officeLabel?: string,
+  ) {
+    return this.trips.listForOrganisation(user.organisationId, { status, vendorOrgId, shiftId, driverId, vehicleId, officeLabel });
   }
 
   @Get(":id")
@@ -39,5 +47,23 @@ export class TripController {
   @Audited({ action: "TRIP_ASSIGNMENT_CREATED", resourceType: "TripAssignment" })
   assign(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() dto: AssignTripDto) {
     return this.trips.assign(user, id, dto);
+  }
+
+  @Post(":id/accept-route")
+  @Audited({ action: "TRIP_ROUTE_ACCEPTED", resourceType: "Trip" })
+  acceptRoute(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.trips.acceptRoute(user, id);
+  }
+
+  @Post(":id/reject-route")
+  @Audited({ action: "TRIP_ROUTE_REJECTED", resourceType: "Trip" })
+  rejectRoute(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.trips.rejectRoute(user, id);
+  }
+
+  @Post(":id/request-reoptimization")
+  @Audited({ action: "TRIP_REOPTIMIZATION_REQUESTED", resourceType: "Trip" })
+  requestReoptimization(@CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.trips.requestReoptimization(user, id);
   }
 }

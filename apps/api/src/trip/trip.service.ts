@@ -209,13 +209,58 @@ export class TripService {
     return trip;
   }
 
-  listForOrganisation(organisationId: string) {
+  listForOrganisation(
+    organisationId: string,
+    filters?: { status?: string; vendorOrgId?: string; shiftId?: string; driverId?: string; vehicleId?: string; officeLabel?: string },
+  ) {
+    const assignmentFilter =
+      filters?.driverId || filters?.vehicleId
+        ? { some: { status: "ACTIVE" as const, driverId: filters.driverId, vehicleId: filters.vehicleId } }
+        : undefined;
+
     return this.prisma.trip.findMany({
-      where: { OR: [{ corporateOrgId: organisationId }, { vendorOrgId: organisationId }] },
+      where: {
+        OR: [{ corporateOrgId: organisationId }, { vendorOrgId: organisationId }],
+        ...(filters?.status ? { status: filters.status as never } : {}),
+        ...(filters?.vendorOrgId ? { vendorOrgId: filters.vendorOrgId } : {}),
+        ...(filters?.shiftId ? { shiftId: filters.shiftId } : {}),
+        ...(assignmentFilter ? { assignments: assignmentFilter } : {}),
+        ...(filters?.officeLabel
+          ? { employees: { some: { employee: { officeLabel: { contains: filters.officeLabel, mode: "insensitive" } } } } }
+          : {}),
+      },
       include: { shift: true, vendorOrg: true },
       orderBy: { scheduledStartAt: "desc" },
       take: 100,
     });
+  }
+
+  /** Vendor/dispatcher acknowledges the route as planned. */
+  async acceptRoute(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.assertParty(actor, tripId);
+    return this.prisma.trip.update({ where: { id: trip.id }, data: { routeAcceptanceStatus: "ACCEPTED" } });
+  }
+
+  /** Vendor/dispatcher rejects the route — a signal to Planning/dispatch to re-route, not a trip cancellation. */
+  async rejectRoute(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.assertParty(actor, tripId);
+    return this.prisma.trip.update({ where: { id: trip.id }, data: { routeAcceptanceStatus: "REJECTED" } });
+  }
+
+  async requestReoptimization(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.assertParty(actor, tripId);
+    return this.prisma.trip.update({ where: { id: trip.id }, data: { reoptimizationRequested: true } });
+  }
+
+  private async assertParty(actor: AuthenticatedUser, tripId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) {
+      throw new NotFoundException("Trip not found");
+    }
+    if (trip.corporateOrgId !== actor.organisationId && trip.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Trip not found");
+    }
+    return trip;
   }
 
   private async assertEligible(
