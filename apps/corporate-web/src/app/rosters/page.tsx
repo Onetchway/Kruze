@@ -46,6 +46,7 @@ export default function RostersPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ total: number; succeeded: number } | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -118,6 +119,71 @@ export default function RostersPage() {
   }
 
   const optedIn = entries.filter((e) => e.status === "OPTED_IN");
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !session) return;
+    setBusy(true);
+    setError(null);
+    setUploadResult(null);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const [header, ...dataLines] = lines;
+      const columns = header.split(",").map((c) => c.trim().toLowerCase());
+      const codeIdx = columns.indexOf("employeecode");
+      const shiftIdx = columns.indexOf("shiftid");
+      const dateIdx = columns.indexOf("date");
+      if (codeIdx === -1 || shiftIdx === -1 || dateIdx === -1) {
+        throw new Error("CSV must have headers: employeeCode,shiftId,date");
+      }
+      const rows = dataLines.map((line) => {
+        const cells = line.split(",").map((c) => c.trim());
+        return { employeeCode: cells[codeIdx], shiftId: cells[shiftIdx], date: cells[dateIdx] };
+      });
+      const result = await api.bulkUploadRoster(session.accessToken, rows);
+      setUploadResult({ total: result.total, succeeded: result.succeeded });
+      reloadEntries();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Failed to upload roster file");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAutoGenerate() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await api.autoGenerateRoster(session.accessToken, { from, to, weekdaysOnly });
+      setMessage(`Auto-generated ${result.created} roster entr${result.created === 1 ? "y" : "ies"} from employees' default shifts.`);
+      reloadEntries();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Auto-generate failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePublishStatus(publishStatus: "PUBLISHED" | "LOCKED") {
+    if (!session || !shiftId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setRosterPublishStatus(session.accessToken, { shiftId, date: from, publishStatus });
+      setMessage(`Roster for the selected shift on ${from} is now ${publishStatus}.`);
+      reloadEntries();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update publish status");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const anyLocked = entries.some((e) => e.publishStatus === "LOCKED");
 
   return (
     <ProtectedShell>
@@ -205,12 +271,52 @@ export default function RostersPage() {
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <button onClick={handleCreateRoster} disabled={busy || !shiftId || selectedEmployeeIds.size === 0}>
+          <button onClick={handleCreateRoster} disabled={busy || !shiftId || selectedEmployeeIds.size === 0 || anyLocked}>
             {busy ? "Working..." : "Create roster"}
           </button>
+          {anyLocked && <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 8 }}>Roster is locked for this range.</span>}
         </div>
         {error && <p className="error-text">{error}</p>}
         {message && <p style={{ color: "var(--success)", fontSize: 13, marginTop: 8 }}>{message}</p>}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Bulk import & auto-generate</h3>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <label className="secondary" style={{ display: "inline-block", padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: "1px solid var(--border)" }}>
+              Upload CSV (employeeCode,shiftId,date)
+              <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: "none" }} />
+            </label>
+          </div>
+          <button className="secondary" type="button" onClick={handleAutoGenerate} disabled={busy}>
+            Auto-generate from employees&apos; default shifts
+          </button>
+          <button className="secondary" type="button" disabled title="Stub — no HRMS integration configured">
+            Import from HRMS
+          </button>
+        </div>
+        {uploadResult && (
+          <p style={{ fontSize: 13, marginTop: 8 }}>
+            Uploaded {uploadResult.total} row(s), {uploadResult.succeeded} succeeded.
+          </p>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Publish / lock ({shifts.find((s) => s.id === shiftId)?.name ?? "—"} · {from})</h3>
+        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          Publishing signals to the auto-plan engine that this shift/date roster is final; locking makes it
+          read-only — no further opt-in/opt-out/cancel changes until unlocked.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => handlePublishStatus("PUBLISHED")} disabled={busy || !shiftId}>
+            Publish
+          </button>
+          <button className="secondary" onClick={() => handlePublishStatus("LOCKED")} disabled={busy || !shiftId}>
+            Lock
+          </button>
+        </div>
       </div>
 
       <div className="stat-row">
@@ -229,7 +335,9 @@ export default function RostersPage() {
       </div>
 
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Roster entries ({from} → {to})</h3>
+        <h3 style={{ marginTop: 0 }}>
+          Roster entries ({from} → {to}) {anyLocked && <span className="badge">Some entries locked</span>}
+        </h3>
         <table>
           <thead>
             <tr>
@@ -237,6 +345,7 @@ export default function RostersPage() {
               <th>Shift</th>
               <th>Date</th>
               <th>Status</th>
+              <th>Publish status</th>
               <th>Source</th>
               <th></th>
             </tr>
@@ -250,9 +359,12 @@ export default function RostersPage() {
                 <td>
                   <span className="badge">{e.status}</span>
                 </td>
+                <td>
+                  <span className={`badge ${e.publishStatus === "LOCKED" ? "warning" : ""}`}>{e.publishStatus ?? "DRAFT"}</span>
+                </td>
                 <td>{e.source}</td>
                 <td>
-                  {e.status === "OPTED_IN" && (
+                  {e.status === "OPTED_IN" && e.publishStatus !== "LOCKED" && (
                     <button className="secondary" onClick={() => handleCancel(e.id)}>
                       Cancel
                     </button>
