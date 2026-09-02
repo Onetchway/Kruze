@@ -74,6 +74,11 @@ model Organisation {
   /// An organisation may carry more than one role (e.g. operator + vendor).
   roles       OrganisationRole[]
   status      OrganisationStatus @default(PENDING_APPROVAL)
+  /// Suspension trail (spec §56-57) — retained even after reactivation as the
+  /// most-recent-suspension record; full history lives in AuditLog.
+  suspendedAt         DateTime?
+  suspendedReason     String?
+  suspendedByUserId   String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -114,6 +119,13 @@ enum MembershipStatus {
 /// Platform role catalogue, granted per membership — never globally.
 enum PlatformRole {
   KRUZE_SUPER_ADMIN
+  PLATFORM_OWNER
+  PLATFORM_OPERATIONS_ADMIN
+  SUPPORT_ADMIN
+  BILLING_ADMIN
+  SECURITY_ADMIN
+  COMPLIANCE_ADMIN
+  READ_ONLY_SUPER_ADMIN
   TENANT_ADMIN
   CORPORATE_TRANSPORT_ADMIN
   CORPORATE_TRANSPORT_MANAGER
@@ -1438,6 +1450,8 @@ model SubscriptionPlan {
   /// Entitlements are feature/module based, never hard-coded by
   /// organisation type — this is the plan's default feature set.
   features  String[] @default([])
+  /// Kruze SaaS list price for this plan, for MRR/ARR computation (spec §4/§24).
+  monthlyPriceCents Int      @default(0)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -1461,6 +1475,9 @@ model Subscription {
   /// Per-organisation overrides/additions on top of the plan's feature set.
   featureOverrides String[]           @default([])
   startsAt         DateTime           @default(now())
+  /// Trial expiry, distinct from `endsAt` (which marks cancellation) — set
+  /// by "extend trial" (spec §22) and checked independently of status.
+  trialEndsAt      DateTime?
   endsAt           DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
