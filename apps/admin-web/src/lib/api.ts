@@ -186,6 +186,7 @@ export interface SubscriptionPlan {
   name: string;
   features: string[];
   active: boolean;
+  monthlyPriceCents?: number;
 }
 
 export interface Subscription {
@@ -193,8 +194,16 @@ export interface Subscription {
   planId: string;
   status: string;
   startsAt: string;
+  trialEndsAt?: string | null;
   endsAt: string | null;
   plan: SubscriptionPlan;
+}
+
+export interface UsageRecord {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  metrics: Record<string, number>;
 }
 
 // --- API calls ----------------------------------------------------------------
@@ -255,9 +264,11 @@ export const api = {
     apiFetch<Subscription>(`/subscriptions/organisations/${organisationId}/extend-trial`, { method: "POST", body: { days }, token }),
   resumeSubscription: (token: string, organisationId: string) =>
     apiFetch<Subscription>(`/subscriptions/organisations/${organisationId}/resume`, { method: "POST", token }),
+  listUsage: (token: string, organisationId: string) =>
+    apiFetch<UsageRecord[]>(`/subscriptions/organisations/${organisationId}/usage`, { token }),
 
   listPlans: (token: string) => apiFetch<SubscriptionPlan[]>("/subscription-plans", { token }),
-  createPlan: (token: string, input: { code: string; name: string; features: string[] }) =>
+  createPlan: (token: string, input: { code: string; name: string; features: string[]; monthlyPriceCents?: number }) =>
     apiFetch<SubscriptionPlan>("/subscription-plans", { method: "POST", body: input, token }),
 
   getSubscription: (token: string, organisationId: string) =>

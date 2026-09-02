@@ -80,4 +80,9 @@ export class SubscriptionController {
   recordUsage(@Param("organisationId") organisationId: string, @Body() dto: RecordUsageDto) {
     return this.subscriptions.recordUsage(organisationId, dto);
   }
+
+  @Get("organisations/:organisationId/usage")
+  listUsage(@Param("organisationId") organisationId: string) {
+    return this.subscriptions.listUsage(organisationId);
+  }
 }

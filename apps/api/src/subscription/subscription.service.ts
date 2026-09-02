@@ -88,6 +88,18 @@ export class SubscriptionService {
     });
   }
 
+  async listUsage(organisationId: string) {
+    const subscription = await this.prisma.subscription.findUnique({ where: { organisationId } });
+    if (!subscription) {
+      return [];
+    }
+    return this.prisma.usageRecord.findMany({
+      where: { subscriptionId: subscription.id },
+      orderBy: { periodStart: "desc" },
+      take: 12,
+    });
+  }
+
   /** The entitlement check every feature-gated module should call. */
   async hasFeature(organisationId: string, featureKey: string): Promise<boolean> {
     const subscription = await this.prisma.subscription.findUnique({

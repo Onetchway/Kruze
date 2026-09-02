@@ -11,6 +11,7 @@ export default function PlansPage() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [features, setFeatures] = useState("");
+  const [monthlyPrice, setMonthlyPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,10 +32,16 @@ export default function PlansPage() {
         .split(",")
         .map((f) => f.trim())
         .filter(Boolean);
-      await api.createPlan(session.accessToken, { code, name, features: featureList });
+      await api.createPlan(session.accessToken, {
+        code,
+        name,
+        features: featureList,
+        monthlyPriceCents: monthlyPrice ? Math.round(Number(monthlyPrice) * 100) : undefined,
+      });
       setCode("");
       setName("");
       setFeatures("");
+      setMonthlyPrice("");
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create plan");
@@ -65,6 +72,10 @@ export default function PlansPage() {
             <label>Feature keys (comma-separated)</label>
             <input value={features} onChange={(e) => setFeatures(e.target.value)} placeholder="planning,billing,ev" />
           </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Monthly price ($)</label>
+            <input value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.target.value)} type="number" min={0} placeholder="499" />
+          </div>
           <button type="submit" disabled={busy}>
             Create plan
           </button>
@@ -78,6 +89,7 @@ export default function PlansPage() {
             <tr>
               <th>Code</th>
               <th>Name</th>
+              <th>Price/mo</th>
               <th>Features</th>
               <th>Status</th>
             </tr>
@@ -87,6 +99,7 @@ export default function PlansPage() {
               <tr key={p.id}>
                 <td>{p.code}</td>
                 <td>{p.name}</td>
+                <td>{p.monthlyPriceCents ? `$${(p.monthlyPriceCents / 100).toFixed(0)}` : "—"}</td>
                 <td>{p.features.join(", ")}</td>
                 <td>
                   <span className={`badge${p.active ? " success" : ""}`}>{p.active ? "Active" : "Inactive"}</span>
@@ -95,7 +108,7 @@ export default function PlansPage() {
             ))}
             {plans.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ color: "var(--text-muted)" }}>
+                <td colSpan={5} style={{ color: "var(--text-muted)" }}>
                   No plans yet.
                 </td>
               </tr>

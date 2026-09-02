@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsString } from "class-validator";
+import { ArrayNotEmpty, IsArray, IsInt, IsOptional, IsString, Min } from "class-validator";
 
 export class CreatePlanDto {
   @IsString()
@@ -11,4 +11,9 @@ export class CreatePlanDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   features!: string[];
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  monthlyPriceCents?: number;
 }
