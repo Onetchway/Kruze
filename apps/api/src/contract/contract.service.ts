@@ -112,6 +112,60 @@ export class ContractService {
     });
   }
 
+  /** Every rate card across every one of this corporate's contracts — powers the dedicated Rate Cards screen. */
+  listRateCardsForCorporate(organisationId: string) {
+    return this.prisma.rateCard.findMany({
+      where: { contract: { corporateOrgId: organisationId } },
+      include: { contract: true, zone: true },
+      orderBy: [{ contractId: "asc" }, { vehicleType: "asc" }, { version: "desc" }],
+    });
+  }
+
+  /**
+   * Rate cards are versioned, never edited in place (see model comment):
+   * "editing" closes out the current card (effectiveTo = now) and creates
+   * a new version row with the changed fields.
+   */
+  async updateRateCard(
+    actor: AuthenticatedUser,
+    rateCardId: string,
+    input: { pricingModel?: string; pricingRules?: unknown; effectiveFrom?: string; effectiveTo?: string },
+  ) {
+    const rateCard = await this.getOwnedRateCard(actor, rateCardId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.rateCard.update({ where: { id: rateCard.id }, data: { effectiveTo: new Date() } });
+      return tx.rateCard.create({
+        data: {
+          contractId: rateCard.contractId,
+          vehicleType: rateCard.vehicleType,
+          zoneId: rateCard.zoneId,
+          pricingModel: input.pricingModel ?? rateCard.pricingModel,
+          pricingRules: (input.pricingRules ?? rateCard.pricingRules) as never,
+          effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+          effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : undefined,
+          version: rateCard.version + 1,
+        },
+      });
+    });
+  }
+
+  /** "Delete" = close out the card so it no longer applies going forward — the versioned history is never destroyed. */
+  async removeRateCard(actor: AuthenticatedUser, rateCardId: string) {
+    const rateCard = await this.getOwnedRateCard(actor, rateCardId);
+    return this.prisma.rateCard.update({ where: { id: rateCard.id }, data: { effectiveTo: new Date() } });
+  }
+
+  private async getOwnedRateCard(actor: AuthenticatedUser, rateCardId: string) {
+    const rateCard = await this.prisma.rateCard.findUnique({ where: { id: rateCardId }, include: { contract: true } });
+    if (!rateCard) {
+      throw new NotFoundException("Rate card not found");
+    }
+    if (rateCard.contract.corporateOrgId !== actor.organisationId && rateCard.contract.vendorOrgId !== actor.organisationId) {
+      throw new NotFoundException("Rate card not found");
+    }
+    return rateCard;
+  }
+
   private async getOwnedContract(actor: AuthenticatedUser, contractId: string) {
     const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
     if (!contract) {

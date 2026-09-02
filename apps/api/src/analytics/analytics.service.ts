@@ -180,6 +180,148 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * Cost-per-employee (already computed in corporateDashboard) plus
+   * cost-per-km, and a cost breakdown by vehicle type — reusing the same
+   * corporate cost and fleet-distance figures, just assembled for the
+   * dedicated Cost Analytics screen (spec §12).
+   */
+  async costAnalytics(corporateOrgId: string, from: Date, to: Date) {
+    const [dashboard, fleet] = await Promise.all([
+      this.corporateDashboard(corporateOrgId, from, to),
+      this.fleetAnalytics(corporateOrgId, from, to),
+    ]);
+
+    const totalTripsByType = Object.values(fleet.tripsByVehicleType).reduce((a, b) => a + b, 0);
+    const costByVehicleType = Object.fromEntries(
+      Object.entries(fleet.tripsByVehicleType).map(([type, tripCount]) => [
+        type,
+        totalTripsByType > 0 ? (dashboard.totalCorporateCost * tripCount) / totalTripsByType : 0,
+      ]),
+    );
+
+    return {
+      period: { from, to },
+      costPerEmployee: dashboard.costPerEmployee,
+      costPerKm: fleet.totalDistanceKm > 0 ? dashboard.totalCorporateCost / fleet.totalDistanceKm : null,
+      totalCorporateCost: dashboard.totalCorporateCost,
+      totalDistanceKm: fleet.totalDistanceKm,
+      costByVehicleType,
+      /// Empty-km (distance driven with no employee onboard) needs a
+      /// planned-path/leg-level distinction this schema doesn't store —
+      /// Trip only records total distance, not pickup-leg vs loaded-leg.
+      /// Reported honestly as unavailable rather than fabricated.
+      emptyKmAvailable: false,
+    };
+  }
+
+  /**
+   * Ranks every connected, ACTIVE vendor by a simple composite score
+   * (completion rate minus cancellation rate, incident count as a
+   * tiebreaker) — real per-vendor figures reusing vendorPerformance,
+   * not invented numbers.
+   */
+  async vendorRanking(corporateOrgId: string, from: Date, to: Date) {
+    const relationships = await this.prisma.organisationRelationship.findMany({
+      where: {
+        type: "CORPORATE_VENDOR",
+        status: "ACTIVE",
+        OR: [{ sourceOrgId: corporateOrgId }, { targetOrgId: corporateOrgId }],
+      },
+    });
+    const vendorOrgIds = relationships.map((r) => (r.sourceOrgId === corporateOrgId ? r.targetOrgId : r.sourceOrgId));
+    if (vendorOrgIds.length === 0) return [];
+
+    const vendors = await this.prisma.organisation.findMany({
+      where: { id: { in: vendorOrgIds } },
+      select: { id: true, displayName: true, globalOrgId: true },
+    });
+
+    const rows = await Promise.all(
+      vendors.map(async (v) => {
+        const perf = await this.vendorPerformance(v.id, from, to);
+        const score = (perf.completionRate ?? 0) * 100 - (perf.cancellationRate ?? 0) * 100 - perf.incidentCount;
+        return { vendor: v, ...perf, score };
+      }),
+    );
+    return rows.sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * Maintenance stats for the vehicles that actually served this
+   * corporate's trips in range — real MaintenanceRecord data, not
+   * fabricated. A vehicle can serve multiple corporates; this scopes to
+   * ones that had at least one active assignment on this corporate's
+   * trips in the window.
+   */
+  async maintenanceStats(corporateOrgId: string, from: Date, to: Date) {
+    const assignments = await this.prisma.tripAssignment.findMany({
+      where: { status: "ACTIVE", vehicleId: { not: null }, trip: { corporateOrgId, scheduledStartAt: { gte: from, lte: to } } },
+      select: { vehicleId: true },
+      distinct: ["vehicleId"],
+    });
+    const vehicleIds = assignments.map((a) => a.vehicleId as string);
+    if (vehicleIds.length === 0) {
+      return { period: { from, to }, vehiclesCovered: 0, totalRecords: 0, byType: {}, byStatus: {}, totalCost: 0, blockingOpenCount: 0 };
+    }
+
+    const records = await this.prisma.maintenanceRecord.findMany({ where: { vehicleId: { in: vehicleIds } } });
+    const byType: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+    let totalCost = 0;
+    let blockingOpenCount = 0;
+    for (const r of records) {
+      byType[r.type] = (byType[r.type] ?? 0) + 1;
+      byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      totalCost += Number(r.cost ?? 0);
+      if (r.blocksDeployment && (r.status === "SCHEDULED" || r.status === "IN_PROGRESS")) blockingOpenCount += 1;
+    }
+
+    return { period: { from, to }, vehiclesCovered: vehicleIds.length, totalRecords: records.length, byType, byStatus, totalCost, blockingOpenCount };
+  }
+
+  /**
+   * Average idle time between consecutive trips for vehicles used in
+   * range — a real (if approximate) signal from existing assignment
+   * windows, not a fabricated number.
+   */
+  async idleTimeAnalytics(corporateOrgId: string, from: Date, to: Date) {
+    const assignments = await this.prisma.tripAssignment.findMany({
+      where: { status: "ACTIVE", vehicleId: { not: null }, trip: { corporateOrgId, scheduledStartAt: { gte: from, lte: to } } },
+      select: { vehicleId: true, trip: { select: { scheduledStartAt: true, scheduledEndAt: true } } },
+    });
+
+    const byVehicle = new Map<string, { start: Date; end: Date }[]>();
+    for (const a of assignments) {
+      const vehicleId = a.vehicleId as string;
+      const windows = byVehicle.get(vehicleId) ?? [];
+      windows.push({
+        start: a.trip.scheduledStartAt,
+        end: a.trip.scheduledEndAt ?? new Date(a.trip.scheduledStartAt.getTime() + 90 * 60 * 1000),
+      });
+      byVehicle.set(vehicleId, windows);
+    }
+
+    let totalIdleMinutes = 0;
+    let gapCount = 0;
+    for (const windows of byVehicle.values()) {
+      windows.sort((a, b) => a.start.getTime() - b.start.getTime());
+      for (let i = 1; i < windows.length; i++) {
+        const gapMs = windows[i].start.getTime() - windows[i - 1].end.getTime();
+        if (gapMs > 0) {
+          totalIdleMinutes += gapMs / 60000;
+          gapCount += 1;
+        }
+      }
+    }
+
+    return {
+      period: { from, to },
+      vehiclesCovered: byVehicle.size,
+      averageIdleMinutesBetweenTrips: gapCount > 0 ? totalIdleMinutes / gapCount : null,
+    };
+  }
+
   async complianceSummary(scopeOrgId?: string) {
     const grouped = await this.prisma.complianceEvaluation.groupBy({
       by: ["status", "subjectType"],

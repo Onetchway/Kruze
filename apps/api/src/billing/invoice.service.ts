@@ -110,6 +110,55 @@ export class InvoiceService {
     });
   }
 
+  async setPaymentStatus(
+    actor: AuthenticatedUser,
+    invoiceId: string,
+    input: { paymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID"; paidAmount?: number },
+  ) {
+    const invoice = await this.getOwnedInvoice(actor, invoiceId);
+    if (invoice.corporateOrgId !== actor.organisationId) {
+      throw new ForbiddenException("Only the invoice's corporate may record payment");
+    }
+    return this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { paymentStatus: input.paymentStatus, paidAmount: input.paidAmount },
+    });
+  }
+
+  /**
+   * Amounts owed per vendor: approved invoice-line totals grouped by
+   * vendor, netted against what's already recorded as paid — powers the
+   * dedicated Vendor Payables screen (spec §12).
+   */
+  async vendorPayablesSummary(corporateOrgId: string) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { corporateOrgId, status: { in: ["APPROVED", "SUBMITTED"] } },
+      include: { lines: true },
+    });
+
+    const byVendor = new Map<string, { vendorOrgId: string; approvedTotal: number; paidTotal: number; invoiceCount: number }>();
+    for (const invoice of invoices) {
+      const approvedTotal = invoice.lines.reduce((sum, l) => sum + Number(l.approvedAmount ?? 0), 0);
+      const entry = byVendor.get(invoice.vendorOrgId) ?? { vendorOrgId: invoice.vendorOrgId, approvedTotal: 0, paidTotal: 0, invoiceCount: 0 };
+      entry.approvedTotal += approvedTotal;
+      entry.paidTotal += Number(invoice.paidAmount ?? 0);
+      entry.invoiceCount += 1;
+      byVendor.set(invoice.vendorOrgId, entry);
+    }
+
+    const vendorOrgIds = Array.from(byVendor.keys());
+    const vendors = vendorOrgIds.length
+      ? await this.prisma.organisation.findMany({ where: { id: { in: vendorOrgIds } }, select: { id: true, displayName: true, globalOrgId: true } })
+      : [];
+    const vendorById = new Map(vendors.map((v) => [v.id, v]));
+
+    return Array.from(byVendor.values()).map((row) => ({
+      ...row,
+      outstanding: row.approvedTotal - row.paidTotal,
+      vendor: vendorById.get(row.vendorOrgId) ?? null,
+    }));
+  }
+
   private async getOwnedInvoice(actor: AuthenticatedUser, invoiceId: string) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) {

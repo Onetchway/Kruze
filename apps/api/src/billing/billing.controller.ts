@@ -80,4 +80,27 @@ export class InvoiceController {
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.invoices.listForOrganisation(user.organisationId);
   }
+
+  @Post(":id/payment-status")
+  @Roles(PlatformRole.CORPORATE_FINANCE, PlatformRole.CORPORATE_TRANSPORT_ADMIN)
+  @Audited({ action: "INVOICE_PAYMENT_STATUS_SET", resourceType: "Invoice" })
+  setPaymentStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() body: { paymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID"; paidAmount?: number },
+  ) {
+    return this.invoices.setPaymentStatus(user, id, body);
+  }
+}
+
+/** Amounts owed per vendor — promoted to its own Commercial screen (spec §12). */
+@Controller("vendor-payables")
+@UseGuards(JwtAuthGuard)
+export class VendorPayablesController {
+  constructor(private readonly invoices: InvoiceService) {}
+
+  @Get()
+  summary(@CurrentUser() user: AuthenticatedUser) {
+    return this.invoices.vendorPayablesSummary(user.organisationId);
+  }
 }

@@ -67,6 +67,30 @@ export class AnalyticsController {
     return this.analytics.safetyAnalytics(user.organisationId, fromDate, toDate);
   }
 
+  @Get("cost")
+  costAnalytics(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.costAnalytics(user.organisationId, fromDate, toDate);
+  }
+
+  @Get("vendor-ranking")
+  vendorRanking(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.vendorRanking(user.organisationId, fromDate, toDate);
+  }
+
+  @Get("maintenance")
+  maintenanceStats(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.maintenanceStats(user.organisationId, fromDate, toDate);
+  }
+
+  @Get("idle-time")
+  idleTime(@CurrentUser() user: AuthenticatedUser, @Query("from") from?: string, @Query("to") to?: string) {
+    const { fromDate, toDate } = parseRange(from, to);
+    return this.analytics.idleTimeAnalytics(user.organisationId, fromDate, toDate);
+  }
+
   /** Own org by default; a connected vendor's org only with an ACTIVE CORPORATE_VENDOR relationship in place. */
   private async resolveVendorScope(user: AuthenticatedUser, vendorOrgId?: string): Promise<string> {
     if (!vendorOrgId || vendorOrgId === user.organisationId) {
