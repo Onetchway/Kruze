@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError, Employee, Shift, Trip, TransportPlan, PlanException, Organisation, CorporateAnalytics } from "@/lib/api";
+
+interface LiveSafetySummary {
+  overspeedCount: number;
+  gpsOfflineCount: number;
+  runningTrips: number;
+  delayedCount: number;
+  routeDeviationCount: number;
+}
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function todayIso(): string {
@@ -30,6 +38,7 @@ export default function DashboardPage() {
   const [safetyIncidents, setSafetyIncidents] = useState<{ sos: number }>({ sos: 0 });
   const [compliance, setCompliance] = useState<{ expiring: number }>({ expiring: 0 });
   const [corpAnalytics, setCorpAnalytics] = useState<CorporateAnalytics | null>(null);
+  const [liveOps, setLiveOps] = useState<LiveSafetySummary | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -52,6 +61,14 @@ export default function DashboardPage() {
       setCompliance({ expiring: rows.filter((r) => r.status === "EXPIRING").reduce((s, r) => s + r.count, 0) }),
     ).catch(() => {});
     api.corporateAnalytics(session.accessToken).then(setCorpAnalytics).catch(() => {});
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const load = () => api.liveSafetySummary(session.accessToken).then(setLiveOps).catch(() => {});
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
   }, [session]);
 
   async function handleGenerate() {
@@ -156,6 +173,41 @@ export default function DashboardPage() {
         <div className="stat-tile">
           <div className="value">{upcomingToday}</div>
           <div className="label">Upcoming</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h3>Live Operations</h3>
+        <a href="/live-ops" style={{ fontSize: 13 }}>
+          Open full view →
+        </a>
+      </div>
+      <div className="card">
+        <div className="stat-row">
+          <div className="stat-tile">
+            <div className="value">{runningToday}</div>
+            <div className="label">Running</div>
+          </div>
+          <div className={`stat-tile ${safetyIncidents.sos > 0 ? "warning" : ""}`}>
+            <div className="value">{safetyIncidents.sos}</div>
+            <div className="label">SOS</div>
+          </div>
+          <div className={`stat-tile ${breakdownToday > 0 ? "warning" : ""}`}>
+            <div className="value">{breakdownToday}</div>
+            <div className="label">Breakdown</div>
+          </div>
+          <div className={`stat-tile ${todaysTrips.filter((t) => t.status === "NO_SHOW").length > 0 ? "warning" : ""}`}>
+            <div className="value">{todaysTrips.filter((t) => t.status === "NO_SHOW").length}</div>
+            <div className="label">No-show</div>
+          </div>
+          <div className={`stat-tile ${todaysTrips.filter((t) => t.status === "CREATED" || t.status === "REASSIGNING").length > 0 ? "warning" : ""}`}>
+            <div className="value">{todaysTrips.filter((t) => t.status === "CREATED" || t.status === "REASSIGNING").length}</div>
+            <div className="label">Unassigned</div>
+          </div>
+          <div className={`stat-tile ${(liveOps?.delayedCount ?? 0) > 0 ? "warning" : ""}`}>
+            <div className="value">{liveOps?.delayedCount ?? "—"}</div>
+            <div className="label">Delayed</div>
+          </div>
         </div>
       </div>
 

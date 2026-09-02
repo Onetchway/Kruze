@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, Trip } from "@/lib/api";
+import { api, Trip, Shift, Driver, Vehicle, OrganisationRelationship } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 const STATUS_FILTERS = [
@@ -16,6 +16,14 @@ const STATUS_FILTERS = [
   "COMPLETED",
 ];
 
+interface LiveSafetySummary {
+  overspeedCount: number;
+  gpsOfflineCount: number;
+  runningTrips: number;
+  delayedCount: number;
+  routeDeviationCount: number;
+}
+
 function statusTone(status: string): string {
   if (status === "SOS_ACTIVE" || status === "BREAKDOWN") return "warning";
   return "";
@@ -25,14 +33,62 @@ export default function LiveOpsPage() {
   const { session } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [filter, setFilter] = useState("ALL");
+  const [liveOps, setLiveOps] = useState<LiveSafetySummary | null>(null);
+
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vendors, setVendors] = useState<OrganisationRelationship[]>([]);
+
+  const [vendorOrgId, setVendorOrgId] = useState("");
+  const [shiftId, setShiftId] = useState("");
+  const [driverId, setDriverId] = useState("");
+  const [vehicleId, setVehicleId] = useState("");
+  const [officeLabel, setOfficeLabel] = useState("");
+
+  function reloadTrips() {
+    if (!session) return;
+    api
+      .listTrips(session.accessToken, {
+        status: filter,
+        vendorOrgId: vendorOrgId || undefined,
+        shiftId: shiftId || undefined,
+        driverId: driverId || undefined,
+        vehicleId: vehicleId || undefined,
+        officeLabel: officeLabel || undefined,
+      })
+      .then(setTrips)
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    reloadTrips();
+    const interval = setInterval(reloadTrips, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, filter, vendorOrgId, shiftId, driverId, vehicleId, officeLabel]);
 
   useEffect(() => {
     if (!session) return;
-    const load = () => api.listTrips(session.accessToken).then(setTrips).catch(() => {});
+    const load = () => api.liveSafetySummary(session.accessToken).then(setLiveOps).catch(() => {});
     load();
     const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
   }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    api.listShifts(session.accessToken).then(setShifts).catch(() => {});
+    api.listDrivers(session.accessToken).then(setDrivers).catch(() => {});
+    api.listVehicles(session.accessToken).then(setVehicles).catch(() => {});
+    api.listRelationships(session.accessToken).then((rels) => setVendors(rels.filter((r) => r.type === "CORPORATE_VENDOR" && r.status === "ACTIVE"))).catch(() => {});
+  }, [session]);
+
+  function vendorLabel(rel: OrganisationRelationship): { id: string; name: string } {
+    const otherId = rel.sourceOrgId === session?.organisationId ? rel.targetOrgId : rel.sourceOrgId;
+    const org = rel.sourceOrgId === session?.organisationId ? rel.targetOrg : rel.sourceOrg;
+    return { id: otherId, name: org?.displayName ?? otherId };
+  }
 
   const running = trips.filter((t) => t.status === "RUNNING" || t.status === "EN_ROUTE_TO_FIRST_PICKUP");
   const sos = trips.filter((t) => t.status === "SOS_ACTIVE");
@@ -40,10 +96,15 @@ export default function LiveOpsPage() {
   const noShow = trips.filter((t) => t.status === "NO_SHOW");
   const unassigned = trips.filter((t) => t.status === "CREATED" || t.status === "REASSIGNING");
 
-  const visible = useMemo(
-    () => (filter === "ALL" ? trips : trips.filter((t) => t.status === filter)),
-    [trips, filter],
-  );
+  const visible = useMemo(() => trips, [trips]);
+
+  function clearFilters() {
+    setVendorOrgId("");
+    setShiftId("");
+    setDriverId("");
+    setVehicleId("");
+    setOfficeLabel("");
+  }
 
   return (
     <ProtectedShell
@@ -70,6 +131,10 @@ export default function LiveOpsPage() {
         <div className={`stat-tile ${unassigned.length > 0 ? "warning" : ""}`}>
           <div className="value">{unassigned.length}</div>
           <div className="label">Unassigned</div>
+        </div>
+        <div className={`stat-tile ${(liveOps?.delayedCount ?? 0) > 0 ? "warning" : ""}`}>
+          <div className="value">{liveOps?.delayedCount ?? "—"}</div>
+          <div className="label">Delayed</div>
         </div>
       </div>
 
@@ -103,6 +168,64 @@ export default function LiveOpsPage() {
             </button>
           ))}
         </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+          <div className="field" style={{ marginBottom: 0, minWidth: 160 }}>
+            <label>Vendor</label>
+            <select value={vendorOrgId} onChange={(e) => setVendorOrgId(e.target.value)}>
+              <option value="">All vendors</option>
+              {vendors.map((r) => {
+                const { id, name } = vendorLabel(r);
+                return (
+                  <option key={r.id} value={id}>
+                    {name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0, minWidth: 160 }}>
+            <label>Shift</label>
+            <select value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+              <option value="">All shifts</option>
+              {shifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0, minWidth: 160 }}>
+            <label>Vehicle</label>
+            <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
+              <option value="">All vehicles</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.registrationNo}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0, minWidth: 160 }}>
+            <label>Driver</label>
+            <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
+              <option value="">All drivers</option>
+              {drivers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0, minWidth: 160 }}>
+            <label>Office / City</label>
+            <input value={officeLabel} onChange={(e) => setOfficeLabel(e.target.value)} placeholder="Search office label" />
+          </div>
+          <button className="secondary" type="button" onClick={clearFilters}>
+            Clear filters
+          </button>
+        </div>
+
         <table>
           <thead>
             <tr>
@@ -114,7 +237,9 @@ export default function LiveOpsPage() {
           <tbody>
             {visible.map((t) => (
               <tr key={t.id}>
-                <td>{t.globalTripId}</td>
+                <td>
+                  <a href={`/trips/${t.id}`}>{t.globalTripId}</a>
+                </td>
                 <td className={statusTone(t.status)}>
                   <span className="badge">{t.status.replaceAll("_", " ")}</span>
                 </td>

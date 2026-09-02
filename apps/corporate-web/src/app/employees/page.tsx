@@ -106,6 +106,7 @@ export default function EmployeesPage() {
           &ldquo;Opt in for today&rdquo; creates a roster entry against the shift selected above — the demand the auto-plan
           reads on the Dashboard.
         </p>
+        <div style={{ overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
@@ -113,6 +114,10 @@ export default function EmployeesPage() {
               <th>Name</th>
               <th>Department</th>
               <th>Shift</th>
+              <th>Location</th>
+              <th>Pickup</th>
+              <th>Vendor</th>
+              <th>Current trip</th>
               <th>Phone</th>
               <th>Status</th>
               <th></th>
@@ -127,6 +132,18 @@ export default function EmployeesPage() {
                 </td>
                 <td>{e.department ?? "—"}</td>
                 <td>{e.shift?.name ?? "—"}</td>
+                <td>{e.pickupLocation?.name ?? e.officeLabel ?? "—"}</td>
+                <td>{e.currentTrip?.pickupEta ? new Date(e.currentTrip.pickupEta).toLocaleTimeString() : "—"}</td>
+                <td>{e.currentTrip?.vendorOrg?.displayName ?? "—"}</td>
+                <td>
+                  {e.currentTrip ? (
+                    <a href={`/trips/${e.currentTrip.id}`}>
+                      <span className="badge">{e.currentTrip.status.replaceAll("_", " ")}</span>
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td>{e.phone}</td>
                 <td>
                   <span className="badge">{e.status}</span>
@@ -141,13 +158,14 @@ export default function EmployeesPage() {
             ))}
             {employees.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "var(--text-muted)" }}>
+                <td colSpan={11} style={{ color: "var(--text-muted)" }}>
                   No employees yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </ProtectedShell>
   );
