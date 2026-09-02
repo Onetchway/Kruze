@@ -79,6 +79,31 @@ model Organisation {
   suspendedAt         DateTime?
   suspendedReason     String?
   suspendedByUserId   String?
+
+  /// Organisation profile fields (spec §7) — all optional so existing
+  /// onboarding/tests that only supply legalName/displayName/roles keep
+  /// working; the admin-web create-org form fills these in progressively.
+  registrationNumber  String?
+  gstin               String?
+  pan                 String?
+  addressLine         String?
+  city                String?
+  state               String?
+  country             String?
+  postalCode          String?
+  primaryContactName  String?
+  primaryContactEmail String?
+  primaryContactPhone String?
+  website             String?
+  timezone            String?
+  currency            String?
+  language            String?
+  industry            String?
+  employeeCount       Int?
+  fleetSize           Int?
+  logoUrl             String?
+  brandConfig         Json?
+
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
