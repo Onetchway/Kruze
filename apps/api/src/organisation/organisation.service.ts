@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { OrganisationRole, OrganisationStatus } from "@kruze/domain";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { formatGlobalOrgId } from "./global-id.util";
+import { AdminCreateOrganisationDto } from "./dto/admin-create-organisation.dto";
+import { UpdateOrganisationProfileDto } from "./dto/update-organisation-profile.dto";
 
 @Injectable()
 export class OrganisationService {
@@ -28,6 +30,112 @@ export class OrganisationService {
         status: OrganisationStatus.PENDING_APPROVAL,
       },
     });
+  }
+
+  /**
+   * Super Admin tenant creation (spec §7) — created ACTIVE directly, since
+   * a Super Admin creating the tenant is itself the approval step, with
+   * the full profile captured up front rather than filled in later.
+   */
+  async adminCreate(input: AdminCreateOrganisationDto) {
+    const primaryRole = input.roles[0];
+    const existingCount = await this.prisma.organisation.count({
+      where: { roles: { has: primaryRole } },
+    });
+    const globalOrgId = formatGlobalOrgId(primaryRole, existingCount + 1);
+    const { legalName, displayName, roles, ...profile } = input;
+
+    return this.prisma.organisation.create({
+      data: {
+        globalOrgId,
+        legalName,
+        displayName,
+        roles,
+        status: OrganisationStatus.ACTIVE,
+        ...profile,
+        brandConfig: profile.brandConfig as never,
+      },
+    });
+  }
+
+  async updateProfile(organisationId: string, input: UpdateOrganisationProfileDto) {
+    await this.getOrThrow(organisationId);
+    return this.prisma.organisation.update({
+      where: { id: organisationId },
+      data: { ...input, brandConfig: input.brandConfig as never },
+    });
+  }
+
+  async suspend(organisationId: string, actorUserId: string, reason: string) {
+    const org = await this.getOrThrow(organisationId);
+    if (org.status === OrganisationStatus.SUSPENDED) {
+      throw new BadRequestException("Organisation is already suspended");
+    }
+    return this.prisma.organisation.update({
+      where: { id: organisationId },
+      data: {
+        status: OrganisationStatus.SUSPENDED,
+        suspendedAt: new Date(),
+        suspendedReason: reason,
+        suspendedByUserId: actorUserId,
+      },
+    });
+  }
+
+  async reactivate(organisationId: string) {
+    const org = await this.getOrThrow(organisationId);
+    if (org.status !== OrganisationStatus.SUSPENDED) {
+      throw new BadRequestException("Organisation is not suspended");
+    }
+    return this.prisma.organisation.update({
+      where: { id: organisationId },
+      data: { status: OrganisationStatus.ACTIVE, suspendedAt: null, suspendedReason: null, suspendedByUserId: null },
+    });
+  }
+
+  async getStats(organisationId: string) {
+    await this.getOrThrow(organisationId);
+    const [userCount, employeeCount, driverRelCount, vehicleRelCount, guardRelCount, relationshipCount, tripCount, subscription] =
+      await Promise.all([
+        this.prisma.organisationMembership.count({ where: { organisationId, status: "ACTIVE" } }),
+        this.prisma.employee.count({ where: { corporateOrgId: organisationId } }),
+        this.prisma.driverVendorRelationship.count({ where: { vendorOrgId: organisationId } }),
+        this.prisma.vehicleVendorRelationship.count({ where: { vendorOrgId: organisationId } }),
+        this.prisma.guardVendorRelationship.count({ where: { vendorOrgId: organisationId } }),
+        this.prisma.organisationRelationship.count({
+          where: { OR: [{ sourceOrgId: organisationId }, { targetOrgId: organisationId }], status: "ACTIVE" },
+        }),
+        this.prisma.trip.count({ where: { OR: [{ corporateOrgId: organisationId }, { vendorOrgId: organisationId }] } }),
+        this.prisma.subscription.findUnique({ where: { organisationId }, include: { plan: true } }),
+      ]);
+    return {
+      userCount,
+      employeeCount,
+      driverRelationshipCount: driverRelCount,
+      vehicleRelationshipCount: vehicleRelCount,
+      guardRelationshipCount: guardRelCount,
+      activeRelationshipCount: relationshipCount,
+      tripCount,
+      subscription,
+    };
+  }
+
+  async listUsers(organisationId: string) {
+    await this.getOrThrow(organisationId);
+    const memberships = await this.prisma.organisationMembership.findMany({
+      where: { organisationId },
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { id: true, email: true, phone: true, displayName: true, status: true, mfaEnabled: true } } },
+    });
+    return memberships;
+  }
+
+  private async getOrThrow(organisationId: string) {
+    const org = await this.prisma.organisation.findUnique({ where: { id: organisationId } });
+    if (!org) {
+      throw new NotFoundException("Organisation not found");
+    }
+    return org;
   }
 
   async approve(organisationId: string) {

@@ -4,6 +4,7 @@ import { OrganisationRole, PlatformRole } from "@kruze/domain";
 import { UsersService } from "../identity/users.service";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { OrganisationService } from "../organisation/organisation.service";
+import { AuditService } from "../audit/audit.service";
 import { JwtPayload } from "./jwt-payload";
 
 /** The admin role granted to the user who self-registers a new organisation. */
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly organisations: OrganisationService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -85,10 +87,18 @@ export class AuthService {
   async login(input: { email: string; password: string; organisationId?: string }) {
     const user = await this.users.findByEmail(input.email);
     if (!user || !user.passwordHash) {
+      void this.audit.record({ action: "LOGIN_FAILED", resourceType: "User", reason: "unknown-email" });
       throw new UnauthorizedException("Invalid credentials");
     }
     const valid = await this.users.verifyPassword(user.passwordHash, input.password);
     if (!valid) {
+      void this.audit.record({
+        actorUserId: user.id,
+        action: "LOGIN_FAILED",
+        resourceType: "User",
+        resourceId: user.id,
+        reason: "bad-password",
+      });
       throw new UnauthorizedException("Invalid credentials");
     }
 
@@ -97,6 +107,10 @@ export class AuthService {
         userId: user.id,
         status: "ACTIVE",
         ...(input.organisationId ? { organisationId: input.organisationId } : {}),
+        // A suspended tenant is locked out at login (spec §56-57 suspension
+        // workflow) — its members keep their membership rows, they just
+        // cannot obtain a new session while the organisation is suspended.
+        organisation: { status: { not: "SUSPENDED" } },
       },
     });
 
@@ -116,6 +130,13 @@ export class AuthService {
     }
 
     const membership = memberships[0];
+    void this.audit.record({
+      actorUserId: user.id,
+      organisationId: membership.organisationId,
+      action: "LOGIN_SUCCEEDED",
+      resourceType: "User",
+      resourceId: user.id,
+    });
     return this.issueTokenForMembership(user.id, membership.id, membership.organisationId, membership.role);
   }
 

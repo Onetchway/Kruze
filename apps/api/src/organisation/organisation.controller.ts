@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
-import { PlatformRole } from "@kruze/domain";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { TENANT_MANAGEMENT_ROLES, SUPER_ADMIN_ROLES } from "@kruze/domain";
 import { OrganisationService } from "./organisation.service";
 import { CreateOrganisationDto } from "./dto/create-organisation.dto";
+import { AdminCreateOrganisationDto } from "./dto/admin-create-organisation.dto";
+import { UpdateOrganisationProfileDto } from "./dto/update-organisation-profile.dto";
+import { SuspendOrganisationDto } from "./dto/suspend-organisation.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../authz/roles.guard";
 import { Roles } from "../authz/roles.decorator";
@@ -22,9 +25,18 @@ export class OrganisationController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(PlatformRole.KRUZE_SUPER_ADMIN)
+  @Roles(...SUPER_ADMIN_ROLES)
   list() {
     return this.organisations.list();
+  }
+
+  /** Super Admin tenant creation (spec §7) — created ACTIVE directly. */
+  @Post("admin-create")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...TENANT_MANAGEMENT_ROLES)
+  @Audited({ action: "ORGANISATION_ADMIN_CREATED", resourceType: "Organisation" })
+  adminCreate(@Body() dto: AdminCreateOrganisationDto) {
+    return this.organisations.adminCreate(dto);
   }
 
   /** Any authenticated user may resolve a Kruze ID to invite that organisation into a relationship. */
@@ -43,9 +55,55 @@ export class OrganisationController {
 
   @Post(":id/approve")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(PlatformRole.KRUZE_SUPER_ADMIN)
+  @Roles(...TENANT_MANAGEMENT_ROLES)
   @Audited({ action: "ORGANISATION_APPROVED", resourceType: "Organisation" })
   approve(@Param("id") id: string) {
     return this.organisations.approve(id);
+  }
+
+  /** Tenant detail (Overview tab). */
+  @Get(":id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SUPER_ADMIN_ROLES)
+  detail(@Param("id") id: string) {
+    return this.organisations.findById(id);
+  }
+
+  @Patch(":id")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...TENANT_MANAGEMENT_ROLES)
+  @Audited({ action: "ORGANISATION_PROFILE_UPDATED", resourceType: "Organisation" })
+  updateProfile(@Param("id") id: string, @Body() dto: UpdateOrganisationProfileDto) {
+    return this.organisations.updateProfile(id, dto);
+  }
+
+  @Get(":id/stats")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SUPER_ADMIN_ROLES)
+  stats(@Param("id") id: string) {
+    return this.organisations.getStats(id);
+  }
+
+  @Get(":id/users")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...SUPER_ADMIN_ROLES)
+  users(@Param("id") id: string) {
+    return this.organisations.listUsers(id);
+  }
+
+  @Post(":id/suspend")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...TENANT_MANAGEMENT_ROLES)
+  @Audited({ action: "ORGANISATION_SUSPENDED", resourceType: "Organisation" })
+  suspend(@Param("id") id: string, @Body() dto: SuspendOrganisationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.organisations.suspend(id, user.userId, dto.reason);
+  }
+
+  @Post(":id/reactivate")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...TENANT_MANAGEMENT_ROLES)
+  @Audited({ action: "ORGANISATION_REACTIVATED", resourceType: "Organisation" })
+  reactivate(@Param("id") id: string) {
+    return this.organisations.reactivate(id);
   }
 }
