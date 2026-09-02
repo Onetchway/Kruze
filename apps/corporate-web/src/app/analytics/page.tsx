@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, CorporateAnalytics, VendorAnalytics, ComplianceSummaryRow, SustainabilityDashboard, OrganisationRelationship } from "@/lib/api";
+import {
+  api,
+  CorporateAnalytics,
+  VendorAnalytics,
+  ComplianceSummaryRow,
+  SustainabilityDashboard,
+  OrganisationRelationship,
+  VendorRankingRow,
+  MaintenanceStats,
+  IdleTimeAnalytics,
+} from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 function pct(v: number | null): string {
@@ -19,6 +29,9 @@ export default function AnalyticsPage() {
   const [sustainability, setSustainability] = useState<SustainabilityDashboard | null>(null);
   const [fleet, setFleet] = useState<{ vehiclesUsed: number; evVehiclesUsed: number; totalDistanceKm: number; tripsByVehicleType: Record<string, number> } | null>(null);
   const [safety, setSafety] = useState<{ totalIncidents: number; incidentsByCategory: Record<string, number>; sosCount: number; noShowCount: number } | null>(null);
+  const [vendorRanking, setVendorRanking] = useState<VendorRankingRow[]>([]);
+  const [maintenance, setMaintenance] = useState<MaintenanceStats | null>(null);
+  const [idleTime, setIdleTime] = useState<IdleTimeAnalytics | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -27,6 +40,9 @@ export default function AnalyticsPage() {
     api.sustainabilityDashboard(session.accessToken).then(setSustainability).catch(() => {});
     api.fleetAnalytics(session.accessToken).then(setFleet).catch(() => {});
     api.safetyAnalytics(session.accessToken).then(setSafety).catch(() => {});
+    api.vendorRanking(session.accessToken).then(setVendorRanking).catch(() => {});
+    api.maintenanceStats(session.accessToken).then(setMaintenance).catch(() => {});
+    api.idleTimeAnalytics(session.accessToken).then(setIdleTime).catch(() => {});
     api.listRelationships(session.accessToken).then((rels) => {
       const active = rels.filter((r) => r.type === "CORPORATE_VENDOR" && r.status === "ACTIVE");
       setVendors(active);
@@ -168,6 +184,90 @@ export default function AnalyticsPage() {
             </thead>
             <tbody>
               {Object.entries(fleet.tripsByVehicleType).map(([type, count]) => (
+                <tr key={type}>
+                  <td>{type}</td>
+                  <td>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <div className="stat-row" style={{ marginTop: 12 }}>
+          <div className="stat-tile">
+            <div className="value">{idleTime?.averageIdleMinutesBetweenTrips != null ? `${idleTime.averageIdleMinutesBetweenTrips.toFixed(0)} min` : "—"}</div>
+            <div className="label">Avg idle time between trips</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">Not available</div>
+            <div className="label">Empty-km (needs leg-level distance)</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Vendor ranking</h3>
+        {vendorRanking.length === 0 ? (
+          <p style={{ color: "var(--text-muted)" }}>No connected vendors with trip activity yet.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Vendor</th>
+                <th>Trips</th>
+                <th>Completion</th>
+                <th>Cancellation</th>
+                <th>Incidents</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vendorRanking.map((row, i) => (
+                <tr key={row.vendor.id}>
+                  <td>{i + 1}</td>
+                  <td>{row.vendor.displayName}</td>
+                  <td>{row.totalTrips}</td>
+                  <td>{pct(row.completionRate)}</td>
+                  <td>{pct(row.cancellationRate)}</td>
+                  <td>{row.incidentCount}</td>
+                  <td>{row.score.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Maintenance</h3>
+        <div className="stat-row">
+          <div className="stat-tile">
+            <div className="value">{maintenance?.vehiclesCovered ?? 0}</div>
+            <div className="label">Vehicles covered</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">{maintenance?.totalRecords ?? 0}</div>
+            <div className="label">Maintenance records</div>
+          </div>
+          <div className={`stat-tile ${(maintenance?.blockingOpenCount ?? 0) > 0 ? "warning" : ""}`}>
+            <div className="value">{maintenance?.blockingOpenCount ?? 0}</div>
+            <div className="label">Open (blocking deployment)</div>
+          </div>
+          <div className="stat-tile">
+            <div className="value">₹{(maintenance?.totalCost ?? 0).toFixed(0)}</div>
+            <div className="label">Total cost</div>
+          </div>
+        </div>
+        {maintenance && Object.keys(maintenance.byType).length > 0 && (
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(maintenance.byType).map(([type, count]) => (
                 <tr key={type}>
                   <td>{type}</td>
                   <td>{count}</td>
