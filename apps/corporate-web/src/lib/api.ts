@@ -58,6 +58,19 @@ export interface Shift {
   endTime: string;
   pickupWindowMinutes: number;
   cutoffMinutesBeforeStart: number;
+  maxRideTimeMinutes?: number | null;
+  transportRequired?: boolean;
+  nightShift?: boolean;
+  safetyPolicyId?: string | null;
+  safetyPolicy?: { id: string; name: string } | null;
+}
+
+export interface EmployeeCurrentTrip {
+  id: string;
+  globalTripId: string;
+  status: string;
+  vendorOrg: { id: string; displayName: string; globalOrgId: string } | null;
+  pickupEta: string | null;
 }
 
 export interface Employee {
@@ -73,6 +86,14 @@ export interface Employee {
   shiftId: string | null;
   shift?: Shift | null;
   status: string;
+  transportEligible?: boolean;
+  eligibilityReason?: string | null;
+  pickupLocationId?: string | null;
+  pickupLocation?: Location | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  specialRequirements?: string[];
+  currentTrip?: EmployeeCurrentTrip | null;
 }
 
 export interface TripDetail extends Trip {
@@ -112,6 +133,7 @@ export interface RosterEntry {
   shiftId: string;
   date: string;
   status: string;
+  publishStatus?: "DRAFT" | "PUBLISHED" | "LOCKED";
   source: string;
   employee: Employee;
   shift: Shift;
@@ -134,6 +156,8 @@ export interface Trip {
   vendorOrgId?: string | null;
   shift?: Shift;
   vendorOrg?: { id: string; displayName: string; globalOrgId: string } | null;
+  routeAcceptanceStatus?: "PENDING" | "ACCEPTED" | "REJECTED";
+  reoptimizationRequested?: boolean;
 }
 
 export interface Incident {
@@ -215,7 +239,53 @@ export interface Invoice {
   periodStart: string;
   periodEnd: string;
   status: string;
+  paymentStatus?: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  paidAmount?: string | null;
   lines: InvoiceLine[];
+}
+
+export interface VendorPayable {
+  vendorOrgId: string;
+  approvedTotal: number;
+  paidTotal: number;
+  outstanding: number;
+  invoiceCount: number;
+  vendor: { id: string; displayName: string; globalOrgId: string } | null;
+}
+
+export interface CostAnalytics {
+  period: { from: string; to: string };
+  costPerEmployee: number | null;
+  costPerKm: number | null;
+  totalCorporateCost: number;
+  totalDistanceKm: number;
+  costByVehicleType: Record<string, number>;
+  emptyKmAvailable: boolean;
+}
+
+export interface VendorRankingRow {
+  vendor: { id: string; displayName: string; globalOrgId: string };
+  totalTrips: number;
+  completionRate: number | null;
+  cancellationRate: number | null;
+  incidentCount: number;
+  score: number;
+}
+
+export interface MaintenanceStats {
+  period: { from: string; to: string };
+  vehiclesCovered: number;
+  totalRecords: number;
+  byType: Record<string, number>;
+  byStatus: Record<string, number>;
+  totalCost: number;
+  blockingOpenCount: number;
+}
+
+export interface IdleTimeAnalytics {
+  period: { from: string; to: string };
+  vehiclesCovered: number;
+  averageIdleMinutesBetweenTrips: number | null;
 }
 
 export interface ComplianceRule {
@@ -304,6 +374,11 @@ export interface TransportPolicy {
   manualApprovalHeadcountThreshold?: number;
 }
 
+export interface EscalationStep {
+  role: string;
+  contact?: string;
+}
+
 export interface CorporateSettings {
   organisationId: string;
   address: string | null;
@@ -314,7 +389,7 @@ export interface CorporateSettings {
   contractEndsAt: string | null;
   paymentTerms: string | null;
   employeePickupChangeLimit: number;
-  config: { notificationSettings?: NotificationSettings; transportPolicy?: TransportPolicy } | null;
+  config: { notificationSettings?: NotificationSettings; transportPolicy?: TransportPolicy; escalationChain?: EscalationStep[] } | null;
 }
 
 export interface CorporatePermission {
@@ -330,6 +405,9 @@ export interface CorporateMember {
   user: { id: string; email: string; displayName: string };
 }
 
+export type LocationType = "OFFICE" | "CAMPUS" | "PARKING" | "DEPOT";
+export type PickupPointType = "METRO" | "SAFE_ZONE" | "OTHER";
+
 export interface Location {
   id: string;
   name: string;
@@ -339,6 +417,18 @@ export interface Location {
   latitude: number | null;
   longitude: number | null;
   status: string;
+  type?: LocationType;
+  pickupPointType?: PickupPointType | null;
+}
+
+export interface LocationRequest {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  requestedByUserId: string;
+  context: { name: string; address?: string; city?: string; latitude?: number; longitude?: number; type?: LocationType; pickupPointType?: PickupPointType; reason?: string };
+  createdAt: string;
+  decidedAt: string | null;
+  decisionReason: string | null;
 }
 
 export interface Zone {
@@ -400,8 +490,36 @@ export const api = {
   }) => apiFetch<Required<Pick<LoginResult, "accessToken" | "organisationId" | "role">>>("/auth/register", { method: "POST", body: input }),
 
   listShifts: (token: string) => apiFetch<Shift[]>("/shifts", { token }),
-  createShift: (token: string, input: { name: string; startTime: string; endTime: string }) =>
-    apiFetch<Shift>("/shifts", { method: "POST", body: input, token }),
+  createShift: (
+    token: string,
+    input: {
+      name: string;
+      startTime: string;
+      endTime: string;
+      pickupWindowMinutes?: number;
+      cutoffMinutesBeforeStart?: number;
+      maxRideTimeMinutes?: number;
+      transportRequired?: boolean;
+      nightShift?: boolean;
+      safetyPolicyId?: string;
+    },
+  ) => apiFetch<Shift>("/shifts", { method: "POST", body: input, token }),
+  updateShift: (
+    token: string,
+    id: string,
+    input: Partial<{
+      name: string;
+      startTime: string;
+      endTime: string;
+      pickupWindowMinutes: number;
+      cutoffMinutesBeforeStart: number;
+      maxRideTimeMinutes: number;
+      transportRequired: boolean;
+      nightShift: boolean;
+      safetyPolicyId: string;
+      active: boolean;
+    }>,
+  ) => apiFetch<Shift>(`/shifts/${id}`, { method: "PATCH", body: input, token }),
 
   listEmployees: (token: string) => apiFetch<Employee[]>("/employees", { token }),
   createEmployee: (
@@ -409,6 +527,27 @@ export const api = {
     input: { employeeCode: string; fullName: string; phone: string; department?: string; shiftId?: string },
   ) => apiFetch<Employee>("/employees", { method: "POST", body: input, token }),
   getEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}`, { token }),
+  updateEmployee: (
+    token: string,
+    id: string,
+    input: Partial<{
+      fullName: string;
+      gender: string;
+      phone: string;
+      email: string;
+      department: string;
+      costCentre: string;
+      officeLabel: string;
+      shiftId: string;
+      pickupLocationId: string;
+      emergencyContactName: string;
+      emergencyContactPhone: string;
+      specialRequirements: string[];
+    }>,
+  ) => apiFetch<Employee>(`/employees/${id}`, { method: "PATCH", body: input, token }),
+  approveEmployeeTransport: (token: string, id: string, input: { transportEligible: boolean; eligibilityReason?: string }) =>
+    apiFetch<Employee>(`/employees/${id}/approve-transport`, { method: "POST", body: input, token }),
+  employeeTripHistory: (token: string, id: string) => apiFetch<Trip[]>(`/employees/${id}/trips`, { token }),
   employeeCurrentTrip: (token: string, id: string) => apiFetch<TripDetail | null>(`/employees/${id}/current-trip`, { token }),
   deactivateEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}/deactivate`, { method: "POST", token }),
   reactivateEmployee: (token: string, id: string) => apiFetch<Employee>(`/employees/${id}/reactivate`, { method: "POST", token }),
@@ -427,6 +566,15 @@ export const api = {
   },
   bulkUpsertRoster: (token: string, input: { shiftId: string; employeeIds: string[]; dates: string[] }) =>
     apiFetch<unknown>("/roster-entries/bulk", { method: "POST", body: input, token }),
+  bulkUploadRoster: (token: string, rows: { employeeCode: string; shiftId: string; date: string }[]) =>
+    apiFetch<{ total: number; succeeded: number; results: { row: unknown; status: string; error?: string }[] }>(
+      "/roster-entries/bulk-upload",
+      { method: "POST", body: { rows }, token },
+    ),
+  autoGenerateRoster: (token: string, input: { from: string; to: string; weekdaysOnly?: boolean }) =>
+    apiFetch<{ total: number; created: number }>("/roster-entries/auto-generate", { method: "POST", body: input, token }),
+  setRosterPublishStatus: (token: string, input: { shiftId: string; date: string; publishStatus: "DRAFT" | "PUBLISHED" | "LOCKED" }) =>
+    apiFetch<{ updated: number; publishStatus: string }>("/roster-entries/publish-status", { method: "POST", body: input, token }),
   cancelRosterEntry: (token: string, id: string) =>
     apiFetch<RosterEntry>(`/roster-entries/${id}/cancel`, { method: "POST", token }),
 
@@ -440,8 +588,25 @@ export const api = {
       { token },
     ),
 
-  listTrips: (token: string) => apiFetch<Trip[]>("/trips", { token }),
+  listTrips: (
+    token: string,
+    filters?: { status?: string; vendorOrgId?: string; shiftId?: string; driverId?: string; vehicleId?: string; officeLabel?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (filters?.status && filters.status !== "ALL") params.set("status", filters.status);
+    if (filters?.vendorOrgId) params.set("vendorOrgId", filters.vendorOrgId);
+    if (filters?.shiftId) params.set("shiftId", filters.shiftId);
+    if (filters?.driverId) params.set("driverId", filters.driverId);
+    if (filters?.vehicleId) params.set("vehicleId", filters.vehicleId);
+    if (filters?.officeLabel) params.set("officeLabel", filters.officeLabel);
+    const qs = params.toString();
+    return apiFetch<Trip[]>(`/trips${qs ? `?${qs}` : ""}`, { token });
+  },
   getTrip: (token: string, id: string) => apiFetch<TripDetail>(`/trips/${id}`, { token }),
+  acceptTripRoute: (token: string, id: string) => apiFetch<Trip>(`/trips/${id}/accept-route`, { method: "POST", token }),
+  rejectTripRoute: (token: string, id: string) => apiFetch<Trip>(`/trips/${id}/reject-route`, { method: "POST", token }),
+  requestTripReoptimization: (token: string, id: string) =>
+    apiFetch<Trip>(`/trips/${id}/request-reoptimization`, { method: "POST", token }),
 
   listTransportRequests: (token: string, filters?: { from?: string; to?: string }) => {
     const params = new URLSearchParams();
@@ -457,7 +622,10 @@ export const api = {
       { token },
     ),
   liveSafetySummary: (token: string) =>
-    apiFetch<{ overspeedCount: number; gpsOfflineCount: number; runningTrips: number }>("/tracking/live-safety-summary", { token }),
+    apiFetch<{ overspeedCount: number; gpsOfflineCount: number; runningTrips: number; delayedCount: number; routeDeviationCount: number }>(
+      "/tracking/live-safety-summary",
+      { token },
+    ),
   fleetAnalytics: (token: string) =>
     apiFetch<{ vehiclesUsed: number; evVehiclesUsed: number; totalDistanceKm: number; tripsByVehicleType: Record<string, number> }>(
       "/analytics/fleet",
@@ -548,9 +716,34 @@ export const api = {
   listLocations: (token: string) => apiFetch<Location[]>("/locations", { token }),
   createLocation: (
     token: string,
-    input: { name: string; code: string; address?: string; city?: string; latitude?: number; longitude?: number },
+    input: {
+      name: string;
+      code: string;
+      address?: string;
+      city?: string;
+      latitude?: number;
+      longitude?: number;
+      type?: LocationType;
+      pickupPointType?: PickupPointType;
+    },
   ) => apiFetch<Location>("/locations", { method: "POST", body: input, token }),
+  updateLocation: (
+    token: string,
+    id: string,
+    input: Partial<{ name: string; address: string; city: string; latitude: number; longitude: number; type: LocationType; pickupPointType: PickupPointType }>,
+  ) => apiFetch<Location>(`/locations/${id}`, { method: "PATCH", body: input, token }),
   removeLocation: (token: string, id: string) => apiFetch<Location>(`/locations/${id}`, { method: "DELETE", token }),
+
+  requestLocation: (
+    token: string,
+    input: { name: string; address?: string; city?: string; latitude?: number; longitude?: number; type?: LocationType; pickupPointType?: PickupPointType; reason?: string },
+  ) => apiFetch<LocationRequest>("/locations/requests", { method: "POST", body: input, token }),
+  listLocationRequests: (token: string, status?: string) =>
+    apiFetch<LocationRequest[]>(`/locations/requests${status ? `?status=${status}` : ""}`, { token }),
+  approveLocationRequest: (token: string, id: string) =>
+    apiFetch<Location>(`/locations/requests/${id}/approve`, { method: "POST", token }),
+  rejectLocationRequest: (token: string, id: string, reason?: string) =>
+    apiFetch<unknown>(`/locations/requests/${id}/reject`, { method: "POST", body: { reason }, token }),
 
   listZones: (token: string) => apiFetch<Zone[]>("/zones", { token }),
   createZone: (token: string, input: { name: string; code: string }) =>
@@ -577,12 +770,25 @@ export const api = {
     },
   ) => apiFetch<RateCard>(`/contracts/${contractId}/rate-cards`, { method: "POST", body: input, token }),
 
+  listRateCards: (token: string) =>
+    apiFetch<(RateCard & { contract: { id: string; vendorOrgId: string; status: string }; zone: Zone | null })[]>("/rate-cards", { token }),
+  updateRateCard: (
+    token: string,
+    id: string,
+    input: Partial<{ pricingModel: string; pricingRules: Record<string, unknown>; effectiveFrom: string; effectiveTo: string }>,
+  ) => apiFetch<RateCard>(`/rate-cards/${id}`, { method: "PATCH", body: input, token }),
+  removeRateCard: (token: string, id: string) => apiFetch<RateCard>(`/rate-cards/${id}`, { method: "DELETE", token }),
+
   corporateAnalytics: (token: string) => apiFetch<CorporateAnalytics>("/analytics/corporate/dashboard", { token }),
   vendorAnalytics: (token: string, vendorOrgId?: string) =>
     apiFetch<VendorAnalytics>(`/analytics/vendor/performance${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
   complianceSummary: (token: string, vendorOrgId?: string) =>
     apiFetch<ComplianceSummaryRow[]>(`/analytics/compliance/summary${vendorOrgId ? `?vendorOrgId=${vendorOrgId}` : ""}`, { token }),
   sustainabilityDashboard: (token: string) => apiFetch<SustainabilityDashboard>("/analytics/sustainability", { token }),
+  costAnalytics: (token: string) => apiFetch<CostAnalytics>("/analytics/cost", { token }),
+  vendorRanking: (token: string) => apiFetch<VendorRankingRow[]>("/analytics/vendor-ranking", { token }),
+  maintenanceStats: (token: string) => apiFetch<MaintenanceStats>("/analytics/maintenance", { token }),
+  idleTimeAnalytics: (token: string) => apiFetch<IdleTimeAnalytics>("/analytics/idle-time", { token }),
 
   listInvoices: (token: string) => apiFetch<Invoice[]>("/invoices", { token }),
   createInvoice: (token: string, input: { vendorOrgId: string; periodStart: string; periodEnd: string }) =>
@@ -591,6 +797,9 @@ export const api = {
     apiFetch<InvoiceLine>(`/invoices/lines/${lineId}/dispute`, { method: "POST", body: { reason }, token }),
   approveInvoiceLine: (token: string, lineId: string) =>
     apiFetch<InvoiceLine>(`/invoices/lines/${lineId}/approve`, { method: "POST", token }),
+  setInvoicePaymentStatus: (token: string, id: string, input: { paymentStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID"; paidAmount?: number }) =>
+    apiFetch<Invoice>(`/invoices/${id}/payment-status`, { method: "POST", body: input, token }),
+  vendorPayables: (token: string) => apiFetch<VendorPayable[]>("/vendor-payables", { token }),
 
   listComplianceRules: (token: string, subjectType?: string) =>
     apiFetch<ComplianceRule[]>(`/compliance-rules${subjectType ? `?subjectType=${subjectType}` : ""}`, { token }),
