@@ -334,6 +334,129 @@ export interface PlatformBranding {
   logoUrl: string | null;
 }
 
+// --- Notifications --------------------------------------------------------
+
+export type NotificationTemplateCategory =
+  | "EMPLOYEE"
+  | "DRIVER"
+  | "VENDOR"
+  | "CORPORATE"
+  | "GUARD"
+  | "BILLING"
+  | "COMPLIANCE"
+  | "SAFETY"
+  | "SYSTEM";
+
+export type NotificationChannelValue = "PUSH" | "SMS" | "WHATSAPP" | "EMAIL";
+
+export interface NotificationTemplate {
+  id: string;
+  name: string;
+  category: NotificationTemplateCategory;
+  channels: NotificationChannelValue[];
+  subject: string | null;
+  body: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationTemplateInput {
+  name: string;
+  category: NotificationTemplateCategory;
+  channels: NotificationChannelValue[];
+  subject?: string;
+  body: string;
+  active?: boolean;
+}
+
+// --- Support ----------------------------------------------------------------
+
+export type SupportCaseCategory =
+  | "LOGIN"
+  | "OTP"
+  | "TRIP"
+  | "GPS"
+  | "INTEGRATION"
+  | "BILLING"
+  | "EMPLOYEE"
+  | "DRIVER"
+  | "COMPLIANCE"
+  | "PERFORMANCE"
+  | "SECURITY";
+
+export type SupportCasePriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type SupportCaseStatus = "OPEN" | "ASSIGNED" | "IN_PROGRESS" | "WAITING" | "RESOLVED" | "CLOSED";
+
+export interface SupportCaseRow {
+  seq: number;
+  ticketNo: string;
+  organisationId: string | null;
+  reportedByUserId: string | null;
+  category: SupportCaseCategory;
+  priority: SupportCasePriority;
+  slaTargetHours: number | null;
+  assigneeUserId: string | null;
+  status: SupportCaseStatus;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  organisation: { id: string; globalOrgId: string; displayName: string } | null;
+}
+
+export interface SupportCaseEventRow {
+  id: string;
+  caseId: number;
+  authorUserId: string | null;
+  message: string;
+  createdAt: string;
+}
+
+export interface SupportCaseDetail extends SupportCaseRow {
+  events: SupportCaseEventRow[];
+}
+
+export interface SupportCaseSummary {
+  total: number;
+  byStatus: Record<string, number>;
+  byPriority: Record<string, number>;
+}
+
+// --- Feature flags ------------------------------------------------------------
+
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  scope: "GLOBAL" | "ORGANISATION";
+  organisationId: string | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- API keys -----------------------------------------------------------------
+
+export interface ApiKeyRow {
+  id: string;
+  name: string;
+  organisationId: string | null;
+  scopes: string[];
+  createdByUserId: string | null;
+  keyPrefix: string;
+  status: "ACTIVE" | "REVOKED";
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+  organisation: { id: string; globalOrgId: string; displayName: string } | null;
+}
+
+export interface ApiKeyCreated extends ApiKeyRow {
+  secret: string;
+}
+
 // --- API calls ----------------------------------------------------------------
 
 export const api = {
@@ -460,4 +583,54 @@ export const api = {
   getPlatformBranding: (token: string) => apiFetch<PlatformBranding>("/platform/settings/branding", { token }),
   setPlatformBranding: (token: string, branding: PlatformBranding) =>
     apiFetch<PlatformBranding>("/platform/settings/branding", { method: "PUT", body: branding, token }),
+
+  // --- Notification templates -----------------------------------------------
+  listNotificationTemplates: (token: string, params: { category?: string; active?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<NotificationTemplate[]>(`/platform/notification-templates${qs ? `?${qs}` : ""}`, { token });
+  },
+  createNotificationTemplate: (token: string, input: NotificationTemplateInput) =>
+    apiFetch<NotificationTemplate>("/platform/notification-templates", { method: "POST", body: input, token }),
+  updateNotificationTemplate: (token: string, id: string, input: Partial<NotificationTemplateInput>) =>
+    apiFetch<NotificationTemplate>(`/platform/notification-templates/${id}`, { method: "PUT", body: input, token }),
+  activateNotificationTemplate: (token: string, id: string) =>
+    apiFetch<NotificationTemplate>(`/platform/notification-templates/${id}/activate`, { method: "POST", token }),
+  deactivateNotificationTemplate: (token: string, id: string) =>
+    apiFetch<NotificationTemplate>(`/platform/notification-templates/${id}/deactivate`, { method: "POST", token }),
+
+  // --- Support cases ---------------------------------------------------------
+  listSupportCases: (
+    token: string,
+    params: { status?: string; category?: string; priority?: string; organisationId?: string } = {},
+  ) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<SupportCaseRow[]>(`/platform/support-cases${qs ? `?${qs}` : ""}`, { token });
+  },
+  getSupportCasesSummary: (token: string) => apiFetch<SupportCaseSummary>("/platform/support-cases/summary", { token }),
+  getSupportCase: (token: string, seq: number) => apiFetch<SupportCaseDetail>(`/platform/support-cases/${seq}`, { token }),
+  createSupportCase: (
+    token: string,
+    input: { organisationId?: string; reportedByUserId?: string; category: SupportCaseCategory; priority?: SupportCasePriority; description: string },
+  ) => apiFetch<SupportCaseRow>("/platform/support-cases", { method: "POST", body: input, token }),
+  changeSupportCaseStatus: (token: string, seq: number, status: SupportCaseStatus, note?: string) =>
+    apiFetch<SupportCaseRow>(`/platform/support-cases/${seq}/status`, { method: "POST", body: { status, note }, token }),
+  assignSupportCase: (token: string, seq: number, assigneeUserId: string) =>
+    apiFetch<SupportCaseRow>(`/platform/support-cases/${seq}/assign`, { method: "POST", body: { assigneeUserId }, token }),
+  addSupportCaseEvent: (token: string, seq: number, message: string) =>
+    apiFetch<SupportCaseEventRow>(`/platform/support-cases/${seq}/events`, { method: "POST", body: { message }, token }),
+
+  // --- Feature flags ------------------------------------------------------------
+  listFeatureFlags: (token: string) => apiFetch<FeatureFlag[]>("/platform/feature-flags", { token }),
+  toggleFeatureFlag: (token: string, id: string) => apiFetch<FeatureFlag>(`/platform/feature-flags/${id}/toggle`, { method: "POST", token }),
+  createFeatureFlag: (
+    token: string,
+    input: { key: string; name: string; description?: string; scope?: "GLOBAL" | "ORGANISATION"; organisationId?: string; enabled?: boolean },
+  ) => apiFetch<FeatureFlag>("/platform/feature-flags", { method: "POST", body: input, token }),
+
+  // --- API keys -------------------------------------------------------------
+  listApiKeys: (token: string, organisationId?: string) =>
+    apiFetch<ApiKeyRow[]>(`/platform/api-keys${organisationId ? `?organisationId=${organisationId}` : ""}`, { token }),
+  createApiKey: (token: string, input: { name: string; organisationId?: string; scopes?: string[]; expiresAt?: string }) =>
+    apiFetch<ApiKeyCreated>("/platform/api-keys", { method: "POST", body: input, token }),
+  revokeApiKey: (token: string, id: string) => apiFetch<ApiKeyRow>(`/platform/api-keys/${id}/revoke`, { method: "POST", token }),
 };

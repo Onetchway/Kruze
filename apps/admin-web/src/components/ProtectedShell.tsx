@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { href: "/compliance", label: "Safety & Compliance", icon: "🛟" },
   { href: "/plans", label: "SaaS Plans & Billing", icon: "💳" },
   { href: "/integrations", label: "Integrations", icon: "🔌" },
+  { href: "/api-keys", label: "API Keys", icon: "🗝" },
+  { href: "/feature-flags", label: "Feature Flags", icon: "🚩" },
   { href: "/notifications", label: "Notifications", icon: "🔔" },
   { href: "/reports", label: "Reports & Analytics", icon: "📊" },
   { href: "/support", label: "Support", icon: "🎧" },

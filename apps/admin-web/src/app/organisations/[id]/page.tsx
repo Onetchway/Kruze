@@ -70,6 +70,20 @@ export default function OrganisationDetailPage() {
     }
   }
 
+  async function handleApprove() {
+    if (!session) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.approveOrganisation(session.accessToken, orgId);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to approve");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!org) {
     return (
       <ProtectedShell>
@@ -96,7 +110,12 @@ export default function OrganisationDetailPage() {
           >
             {org.status}
           </span>
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            {org.status === "PENDING_APPROVAL" && (
+              <button disabled={busy} onClick={handleApprove}>
+                Approve
+              </button>
+            )}
             {org.status !== "SUSPENDED" ? (
               <button className="secondary" onClick={() => setShowSuspend((v) => !v)}>
                 Suspend tenant
