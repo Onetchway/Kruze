@@ -131,6 +131,10 @@ model Organisation {
   zones                 Zone[]
   driverPaymentVouchers DriverPaymentVoucher[]
 
+  supportCases SupportCase[]
+  featureFlags FeatureFlag[]
+  apiKeys      ApiKey[]
+
   @@map("organisations")
 }
 
@@ -1594,4 +1598,180 @@ model PlatformSettingHistory {
 
   @@index([key, createdAt])
   @@map("platform_setting_history")
+}
+
+// ---------------------------------------------------------------------------
+// Notification template catalogue (Super Admin "Notifications", spec §53).
+// Distinct from the `Notification` model above, which records individual
+// sent messages — this is the definition/catalogue a Super Admin authors and
+// activates, keyed by name, not yet consumed by the send pipeline.
+// ---------------------------------------------------------------------------
+
+enum NotificationTemplateCategory {
+  EMPLOYEE
+  DRIVER
+  VENDOR
+  CORPORATE
+  GUARD
+  BILLING
+  COMPLIANCE
+  SAFETY
+  SYSTEM
+}
+
+model NotificationTemplate {
+  id        String                        @id @default(uuid())
+  name      String                        @unique
+  category  NotificationTemplateCategory
+  /// Delivery channels this template is sent over, e.g. ["PUSH","SMS"].
+  channels  String[]                      @default([])
+  subject   String?
+  body      String
+  active    Boolean                       @default(true)
+  createdAt DateTime                      @default(now())
+  updatedAt DateTime                      @updatedAt
+
+  @@index([category])
+  @@map("notification_templates")
+}
+
+// ---------------------------------------------------------------------------
+// Support case management (Super Admin "Support", spec §55). Super-Admin
+// side only this pass — no end-user ("raise a ticket") submission surface
+// exists yet in corporate/vendor apps.
+// ---------------------------------------------------------------------------
+
+enum SupportCaseCategory {
+  LOGIN
+  OTP
+  TRIP
+  GPS
+  INTEGRATION
+  BILLING
+  EMPLOYEE
+  DRIVER
+  COMPLIANCE
+  PERFORMANCE
+  SECURITY
+}
+
+enum SupportCasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportCaseStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+}
+
+model SupportCase {
+  /// Human-facing autonumber, e.g. "CASE-000123" — assigned at creation from `seq`.
+  ticketNo         String              @unique
+  seq              Int                 @id @default(autoincrement())
+  organisationId   String?
+  reportedByUserId String?
+  category         SupportCaseCategory
+  priority         SupportCasePriority @default(MEDIUM)
+  /// SLA target, in hours, computed from priority at creation — an easy fixed
+  /// mapping (spec says "if easy"), not a configurable SLA policy engine.
+  slaTargetHours   Int?
+  assigneeUserId   String?
+  status           SupportCaseStatus  @default(OPEN)
+  description      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+
+  events SupportCaseEvent[]
+
+  @@index([status])
+  @@index([organisationId])
+  @@index([assigneeUserId])
+  @@map("support_cases")
+}
+
+/// Simple timeline/conversation on a SupportCase: status changes and free-text notes.
+model SupportCaseEvent {
+  id           String   @id @default(uuid())
+  caseId       Int
+  authorUserId String?
+  message      String
+  createdAt    DateTime @default(now())
+
+  case SupportCase @relation(fields: [caseId], references: [seq])
+
+  @@index([caseId, createdAt])
+  @@map("support_case_events")
+}
+
+// ---------------------------------------------------------------------------
+// Feature flags (Super Admin "Feature Flags", spec §62) — simple on/off only.
+// No percentage rollout, no scheduled activation, and not wired into any
+// other module's feature-gating logic this pass: visibility/toggle only.
+// ---------------------------------------------------------------------------
+
+enum FeatureFlagScope {
+  GLOBAL
+  ORGANISATION
+}
+
+model FeatureFlag {
+  id             String            @id @default(uuid())
+  key            String
+  name           String
+  description    String?
+  scope          FeatureFlagScope  @default(GLOBAL)
+  organisationId String?
+  enabled        Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+
+  @@unique([key, organisationId])
+  @@index([scope])
+  @@map("feature_flags")
+}
+
+// ---------------------------------------------------------------------------
+// API keys (Super Admin "API Keys", spec §51 minimal slice). Bare CRUD only:
+// no OAuth apps, no webhook delivery, no rate limiting, no API versioning.
+// The plaintext secret is returned exactly once, at creation, and never
+// stored — only its hash is persisted.
+// ---------------------------------------------------------------------------
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+model ApiKey {
+  id              String       @id @default(uuid())
+  name            String
+  organisationId  String?
+  scopes          String[]     @default([])
+  createdByUserId String?
+  secretHash      String
+  /// Non-secret prefix of the key shown in the list UI, e.g. "kz_ab12cd34", so an
+  /// admin can recognise a key by its start without ever re-displaying the secret.
+  keyPrefix       String
+  status          ApiKeyStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  revokedAt       DateTime?
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+
+  @@index([organisationId])
+  @@index([status])
+  @@map("api_keys")
 }
