@@ -52,7 +52,11 @@ export default function PlansPage() {
 
   return (
     <ProtectedShell>
-      <h2 style={{ marginTop: 0 }}>Subscription Plans</h2>
+      <h2 style={{ marginTop: 0, marginBottom: 4 }}>SaaS Plans & Billing</h2>
+      <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 0 }}>
+        Platform-wide plan catalogue. Per-tenant subscription actions (upgrade/downgrade/extend-trial/suspend) live on
+        each organisation's <a href="/organisations">detail page →</a>.
+      </p>
       <p style={{ color: "var(--text-muted)" }}>
         A plan is a named bundle of feature keys — entitlements are feature-based, never hard-coded by organisation
         type.

@@ -7,13 +7,21 @@ import { useAuth } from "@/lib/auth";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
   { href: "/organisations", label: "Organisations", icon: "🏢" },
-  { href: "/users", label: "Users", icon: "👤" },
-  { href: "/plans", label: "Plans", icon: "📦" },
-  { href: "/subscriptions", label: "Subscriptions", icon: "💳" },
-  { href: "/audit-log", label: "Audit Log", icon: "📜" },
-  { href: "/security", label: "Security", icon: "🔐" },
+  { href: "/relationships", label: "Relationships", icon: "🔗" },
+  { href: "/users", label: "Users & Access", icon: "👤" },
+  { href: "/fleet", label: "Fleet & Resources", icon: "🚐" },
+  { href: "/operations", label: "Transport Operations", icon: "🧭" },
+  { href: "/planning", label: "Planning & Automation", icon: "⚙" },
+  { href: "/compliance", label: "Safety & Compliance", icon: "🛟" },
+  { href: "/plans", label: "SaaS Plans & Billing", icon: "💳" },
+  { href: "/integrations", label: "Integrations", icon: "🔌" },
+  { href: "/notifications", label: "Notifications", icon: "🔔" },
+  { href: "/reports", label: "Reports & Analytics", icon: "📊" },
+  { href: "/support", label: "Support", icon: "🎧" },
+  { href: "/security", label: "Security Centre", icon: "🔐" },
+  { href: "/audit-log", label: "Audit Logs", icon: "📜" },
   { href: "/system-health", label: "System Health", icon: "❤" },
-  { href: "/roles", label: "Roles", icon: "🛡" },
+  { href: "/settings", label: "Platform Settings", icon: "🛠" },
 ];
 
 export function ProtectedShell({ children }: { children: React.ReactNode }) {

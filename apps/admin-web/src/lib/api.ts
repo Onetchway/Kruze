@@ -206,6 +206,134 @@ export interface UsageRecord {
   metrics: Record<string, number>;
 }
 
+export interface PlatformRelationshipRow {
+  id: string;
+  type: string;
+  status: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  sourceOrg: { id: string; globalOrgId: string; displayName: string; roles: string[]; status: string };
+  targetOrg: { id: string; globalOrgId: string; displayName: string; roles: string[]; status: string };
+  createdBy?: { id: string; email: string | null; displayName: string } | null;
+  contract: {
+    id: string;
+    corporateOrgId: string;
+    vendorOrgId: string;
+    status: string;
+    startsAt: string;
+    endsAt: string | null;
+    scopeCities: string[];
+  } | null;
+}
+
+export interface PlatformRelationshipSummary {
+  total: number;
+  byType: Record<string, number>;
+  byStatus: Record<string, number>;
+}
+
+export interface PlatformDriverRow {
+  id: string;
+  globalDriverId: string;
+  fullName: string;
+  phone: string;
+  status: string;
+  createdAt: string;
+  vendorRelationships: { id: string; status: string; vendorOrg: { id: string; displayName: string; globalOrgId: string } }[];
+}
+
+export interface PlatformVehicleRow {
+  id: string;
+  globalVehicleId: string;
+  registrationNo: string;
+  make: string | null;
+  model: string | null;
+  vehicleType: string | null;
+  status: string;
+  createdAt: string;
+  vendorRelationships: { id: string; status: string; vendorOrg: { id: string; displayName: string; globalOrgId: string } }[];
+}
+
+export interface PlatformGuardRow {
+  id: string;
+  globalGuardId: string;
+  fullName: string;
+  phone: string;
+  status: string;
+  createdAt: string;
+  vendorRelationships: { id: string; status: string; vendorOrg: { id: string; displayName: string; globalOrgId: string } }[];
+}
+
+export interface PlatformFleetSummary {
+  drivers: { total: number; byStatus: Record<string, number> };
+  vehicles: { total: number; byStatus: Record<string, number> };
+  guards: { total: number; byStatus: Record<string, number> };
+}
+
+export interface PlatformOperationsOverview {
+  todayTripStatusRaw: Record<string, number>;
+  liveOperations: {
+    planned: number;
+    assigned: number;
+    driverEnRoute: number;
+    pickupStarted: number;
+    inProgress: number;
+    completed: number;
+    cancelled: number;
+    exceptions: number;
+  };
+  planExceptions: { open: number; byType: Record<string, number> };
+  sos: { activeTripsInSos: number; openIncidentsByCategory: Record<string, number> };
+}
+
+export interface PlatformTripRow {
+  id: string;
+  globalTripId: string;
+  status: string;
+  scheduledStartAt: string;
+  corporateOrg: { id: string; displayName: string };
+  vendorOrg: { id: string; displayName: string } | null;
+  assignments: { driver: { fullName: string } | null; vehicle: { registrationNo: string } | null }[];
+}
+
+export interface PlatformComplianceOverview {
+  documents: {
+    byStatus: Record<string, number>;
+    byEntityType: Record<string, number>;
+    valid: number;
+    expiringSoon: number;
+    expired: number;
+  };
+}
+
+export interface PlatformSafetyPolicyRow {
+  id: string;
+  name: string;
+  version: number;
+  active: boolean;
+  createdAt: string;
+  organisation: { id: string; displayName: string; globalOrgId: string };
+  rules: { id: string; type: string; config: unknown; mandatory: boolean }[];
+}
+
+export interface PlanningWeights {
+  safety: number;
+  onTime: number;
+  rideTime: number;
+  utilization: number;
+  cost: number;
+  routeStability: number;
+}
+
+export interface PlatformBranding {
+  platformName: string;
+  timezone: string;
+  currency: string;
+  language: string;
+  logoUrl: string | null;
+}
+
 // --- API calls ----------------------------------------------------------------
 
 export const api = {
@@ -281,4 +409,55 @@ export const api = {
     apiFetch<Subscription>(`/subscriptions/organisations/${organisationId}/suspend`, { method: "POST", token }),
   cancelSubscription: (token: string, organisationId: string) =>
     apiFetch<Subscription>(`/subscriptions/organisations/${organisationId}/cancel`, { method: "POST", token }),
+
+  // --- Relationships (platform-wide) ---------------------------------------
+  listPlatformRelationships: (token: string, params: { type?: string; status?: string; organisationId?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<PlatformRelationshipRow[]>(`/platform/relationships${qs ? `?${qs}` : ""}`, { token });
+  },
+  getPlatformRelationshipsSummary: (token: string) =>
+    apiFetch<PlatformRelationshipSummary>("/platform/relationships/summary", { token }),
+  getPlatformRelationship: (token: string, id: string) =>
+    apiFetch<PlatformRelationshipRow>(`/platform/relationships/${id}`, { token }),
+
+  // --- Fleet & Resources (platform-wide) -----------------------------------
+  getFleetSummary: (token: string) => apiFetch<PlatformFleetSummary>("/platform/fleet/summary", { token }),
+  listPlatformDrivers: (token: string, params: { q?: string; status?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<PlatformDriverRow[]>(`/platform/fleet/drivers${qs ? `?${qs}` : ""}`, { token });
+  },
+  listPlatformVehicles: (token: string, params: { q?: string; status?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<PlatformVehicleRow[]>(`/platform/fleet/vehicles${qs ? `?${qs}` : ""}`, { token });
+  },
+  listPlatformGuards: (token: string, params: { q?: string; status?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<PlatformGuardRow[]>(`/platform/fleet/guards${qs ? `?${qs}` : ""}`, { token });
+  },
+  blockDriver: (token: string, id: string) => apiFetch(`/platform/fleet/drivers/${id}/block`, { method: "POST", token }),
+  suspendDriver: (token: string, id: string) => apiFetch(`/platform/fleet/drivers/${id}/suspend`, { method: "POST", token }),
+  unblockDriver: (token: string, id: string) => apiFetch(`/platform/fleet/drivers/${id}/unblock`, { method: "POST", token }),
+  blockVehicle: (token: string, id: string) => apiFetch(`/platform/fleet/vehicles/${id}/block`, { method: "POST", token }),
+  unblockVehicle: (token: string, id: string) => apiFetch(`/platform/fleet/vehicles/${id}/unblock`, { method: "POST", token }),
+  blockGuard: (token: string, id: string) => apiFetch(`/platform/fleet/guards/${id}/block`, { method: "POST", token }),
+  unblockGuard: (token: string, id: string) => apiFetch(`/platform/fleet/guards/${id}/unblock`, { method: "POST", token }),
+
+  // --- Transport Operations (platform-wide) --------------------------------
+  getOperationsOverview: (token: string) => apiFetch<PlatformOperationsOverview>("/platform/operations/overview", { token }),
+  listPlatformTrips: (token: string, params: { status?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<{ trips: PlatformTripRow[]; nextCursor: string | null }>(`/platform/operations/trips${qs ? `?${qs}` : ""}`, { token });
+  },
+
+  // --- Safety & Compliance (platform-wide) ---------------------------------
+  getComplianceOverview: (token: string) => apiFetch<PlatformComplianceOverview>("/platform/compliance/overview", { token }),
+  listSafetyPolicies: (token: string) => apiFetch<PlatformSafetyPolicyRow[]>("/platform/compliance/safety-policies", { token }),
+
+  // --- Planning & Automation / Platform Settings ---------------------------
+  getPlanningWeights: (token: string) => apiFetch<PlanningWeights>("/platform/settings/planning-weights", { token }),
+  setPlanningWeights: (token: string, weights: PlanningWeights) =>
+    apiFetch<PlanningWeights>("/platform/settings/planning-weights", { method: "PUT", body: weights, token }),
+  getPlatformBranding: (token: string) => apiFetch<PlatformBranding>("/platform/settings/branding", { token }),
+  setPlatformBranding: (token: string, branding: PlatformBranding) =>
+    apiFetch<PlatformBranding>("/platform/settings/branding", { method: "PUT", body: branding, token }),
 };

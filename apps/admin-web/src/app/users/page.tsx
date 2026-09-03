@@ -127,7 +127,13 @@ function UsersPageInner() {
   return (
     <ProtectedShell>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ marginTop: 0 }}>Users</h2>
+        <div>
+          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Users & Access</h2>
+          <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
+            Cross-tenant user management. See <a href="/roles">Roles & Permission Matrix →</a> for the 7 Super Admin
+            roles and what each may do.
+          </p>
+        </div>
         <button onClick={() => setShowInvite((v) => !v)}>{showInvite ? "Cancel" : "+ Invite user"}</button>
       </div>
 
