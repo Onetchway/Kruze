@@ -32,12 +32,20 @@ export class PlatformFeatureFlagService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
+    // Postgres does not treat NULL as equal to NULL for a unique index, so the
+    // (key, organisationId) constraint alone does not stop two concurrent
+    // instances from both inserting the same global (organisationId: null)
+    // flag — guard with a find-then-create-or-ignore instead, tolerating a
+    // races-lost create rather than crashing startup.
     for (const flag of DEFAULT_FLAGS) {
       const existing = await this.prisma.featureFlag.findFirst({ where: { key: flag.key, organisationId: null } });
-      if (!existing) {
+      if (existing) continue;
+      try {
         await this.prisma.featureFlag.create({
           data: { key: flag.key, name: flag.name, description: flag.description, scope: "GLOBAL", enabled: flag.enabled },
         });
+      } catch {
+        // Lost a startup race to another instance seeding the same default flag — fine, it exists now.
       }
     }
   }
