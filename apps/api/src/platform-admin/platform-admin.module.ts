@@ -12,6 +12,10 @@ import {
   PlatformOperationsController,
   PlatformComplianceController,
   PlatformSettingsController,
+  PlatformNotificationController,
+  PlatformSupportController,
+  PlatformFeatureFlagController,
+  PlatformApiKeyController,
 } from "./platform-ops.controller";
 import { PlatformDashboardService } from "./platform-dashboard.service";
 import { PlatformUserService } from "./platform-user.service";
@@ -22,6 +26,10 @@ import { PlatformFleetService } from "./platform-fleet.service";
 import { PlatformOperationsService } from "./platform-operations.service";
 import { PlatformComplianceService } from "./platform-compliance.service";
 import { PlatformSettingsService } from "./platform-settings.service";
+import { PlatformNotificationService } from "./platform-notification.service";
+import { PlatformSupportService } from "./platform-support.service";
+import { PlatformFeatureFlagService } from "./platform-feature-flag.service";
+import { PlatformApiKeyService } from "./platform-api-key.service";
 import { IdentityModule } from "../identity/identity.module";
 
 @Module({
@@ -37,6 +45,10 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformOperationsController,
     PlatformComplianceController,
     PlatformSettingsController,
+    PlatformNotificationController,
+    PlatformSupportController,
+    PlatformFeatureFlagController,
+    PlatformApiKeyController,
   ],
   providers: [
     PlatformDashboardService,
@@ -48,6 +60,10 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformOperationsService,
     PlatformComplianceService,
     PlatformSettingsService,
+    PlatformNotificationService,
+    PlatformSupportService,
+    PlatformFeatureFlagService,
+    PlatformApiKeyService,
   ],
 })
 export class PlatformAdminModule {}
