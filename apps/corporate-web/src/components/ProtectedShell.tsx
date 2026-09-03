@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, Organisation } from "@/lib/api";
+import { Icon, NavIcon, IconName } from "@/components/icons";
 
 const CORPORATE_ROLES = [
   "CORPORATE_TRANSPORT_ADMIN",
@@ -20,11 +21,10 @@ const FLEET_ROLES = ["VENDOR_ADMIN", "FLEET_OPERATOR_ADMIN"];
 interface NavLeaf {
   href: string;
   label: string;
-  icon?: string;
+  icon: IconName;
 }
 interface NavGroup {
   label: string;
-  icon: string;
   children: NavLeaf[];
 }
 type NavEntry = NavLeaf | NavGroup;
@@ -36,83 +36,82 @@ function isGroup(entry: NavEntry): entry is NavGroup {
 function navTreeForRole(role: string): NavEntry[] {
   if (FLEET_ROLES.includes(role)) {
     return [
-      { href: "/dashboard", label: "Dashboard", icon: "▦" },
-      { href: "/fleet", label: "Fleet", icon: "🚐" },
-      { href: "/drivers", label: "Drivers", icon: "👤" },
-      { href: "/guards", label: "Guards", icon: "🛡" },
-      { href: "/trips", label: "Trips", icon: "🧭" },
-      { href: "/operational-mis", label: "Operational MIS", icon: "📊" },
-      { href: "/connections", label: "Corporates", icon: "🔗" },
+      { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+      { href: "/fleet", label: "Fleet", icon: "van" },
+      { href: "/drivers", label: "Drivers", icon: "user" },
+      { href: "/guards", label: "Guards", icon: "shield" },
+      { href: "/trips", label: "Trips", icon: "compass" },
+      { href: "/operational-mis", label: "Operational MIS", icon: "chart" },
+      { href: "/connections", label: "Corporates", icon: "link" },
     ];
   }
 
   return [
-    { href: "/dashboard", label: "Dashboard", icon: "▦" },
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
     {
-      label: "Employees",
-      icon: "👥",
+      label: "HRMS",
       children: [
-        { href: "/employees", label: "Employees" },
-        { href: "/signup-requests", label: "Signup Requests" },
+        { href: "/employees", label: "Employees", icon: "users" },
+        { href: "/signup-requests", label: "Signup Requests", icon: "user" },
       ],
     },
     {
       label: "Locations",
-      icon: "📍",
       children: [
-        { href: "/locations", label: "Drop Locations" },
-        { href: "/zones", label: "Zones" },
+        { href: "/locations", label: "Drop Locations", icon: "pin" },
+        { href: "/zones", label: "Zones", icon: "pin" },
       ],
     },
-    { href: "/shifts", label: "Shifts", icon: "⏱" },
-    { href: "/rosters", label: "Rosters", icon: "📅" },
     {
-      label: "Transport",
-      icon: "🚗",
+      label: "Operations",
       children: [
-        { href: "/transport-requests", label: "Transport Requests" },
-        { href: "/trips", label: "Trips" },
-        { href: "/live-ops", label: "Live Operations" },
-        { href: "/routes", label: "Routes" },
-        { href: "/exceptions", label: "Exceptions" },
+        { href: "/shifts", label: "Shifts", icon: "clock" },
+        { href: "/rosters", label: "Rosters", icon: "calendar" },
+        { href: "/transport-requests", label: "Transport Requests", icon: "car" },
+        { href: "/trips", label: "Trips", icon: "compass" },
+        { href: "/live-ops", label: "Live Operations", icon: "compass" },
+        { href: "/routes", label: "Routes", icon: "compass" },
+        { href: "/exceptions", label: "Exceptions", icon: "alert" },
       ],
     },
     {
       label: "Vendors & Operators",
-      icon: "🏢",
       children: [
-        { href: "/connections", label: "Vendors" },
-        { href: "/fleet", label: "Fleet" },
-        { href: "/drivers", label: "Drivers" },
-        { href: "/guards", label: "Guards" },
+        { href: "/connections", label: "Vendors", icon: "link" },
+        { href: "/fleet", label: "Fleet", icon: "van" },
+        { href: "/drivers", label: "Drivers", icon: "user" },
+        { href: "/guards", label: "Guards", icon: "shield" },
       ],
     },
     {
       label: "Safety",
-      icon: "🛡",
       children: [
-        { href: "/safety", label: "Live Safety" },
-        { href: "/safety/sos", label: "SOS" },
-        { href: "/safety/female-safety", label: "Female Safety" },
-        { href: "/guard-escort", label: "Guard / Escort" },
+        { href: "/safety", label: "Live Safety", icon: "shield" },
+        { href: "/safety/sos", label: "SOS", icon: "alert" },
+        { href: "/safety/female-safety", label: "Female Safety", icon: "heart" },
+        { href: "/guard-escort", label: "Guard / Escort", icon: "shield" },
       ],
     },
-    { href: "/compliance", label: "Compliance", icon: "✅" },
+    { href: "/compliance", label: "Compliance", icon: "check" },
     {
       label: "Commercial",
-      icon: "💰",
       children: [
-        { href: "/contracts", label: "Contracts" },
-        { href: "/rate-cards", label: "Rate Cards" },
-        { href: "/invoices", label: "Invoices" },
-        { href: "/vendor-payables", label: "Vendor Payables" },
-        { href: "/reconciliation", label: "Reconciliation" },
-        { href: "/cost-analytics", label: "Cost Analytics" },
+        { href: "/contracts", label: "Contracts", icon: "scroll" },
+        { href: "/rate-cards", label: "Rate Cards", icon: "card" },
+        { href: "/invoices", label: "Invoices", icon: "money" },
+        { href: "/vendor-payables", label: "Vendor Payables", icon: "money" },
+        { href: "/reconciliation", label: "Reconciliation", icon: "check" },
+        { href: "/cost-analytics", label: "Cost Analytics", icon: "chart" },
       ],
     },
-    { href: "/analytics", label: "Analytics", icon: "📈" },
-    { href: "/integrations", label: "Integrations", icon: "🔌" },
-    { href: "/settings", label: "Settings", icon: "⚙" },
+    {
+      label: "Settings",
+      children: [
+        { href: "/analytics", label: "Analytics", icon: "chart" },
+        { href: "/integrations", label: "Integrations", icon: "plug" },
+        { href: "/settings", label: "Settings", icon: "settings" },
+      ],
+    },
   ];
 }
 
@@ -143,27 +142,12 @@ function roleLabel(role: string): string {
   }
 }
 
-function NavGroupItem({ group, pathname }: { group: NavGroup; pathname: string }) {
-  const hasActiveChild = group.children.some((c) => pathname === c.href);
-  const [open, setOpen] = useState(hasActiveChild);
-
+function NavLink({ item, pathname }: { item: NavLeaf; pathname: string }) {
   return (
-    <div className="app-nav-group">
-      <button type="button" className={`app-nav-group-toggle${hasActiveChild ? " active" : ""}`} onClick={() => setOpen((o) => !o)}>
-        <span className="nav-icon">{group.icon}</span>
-        {group.label}
-        <span className="chevron">{open ? "▾" : "▸"}</span>
-      </button>
-      {open && (
-        <div className="app-nav-group-children">
-          {group.children.map((child) => (
-            <a key={child.href} href={child.href} className={pathname === child.href ? "active" : undefined}>
-              {child.label}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
+    <a href={item.href} className={pathname === item.href ? "active" : undefined}>
+      <NavIcon name={item.icon} />
+      {item.label}
+    </a>
   );
 }
 
@@ -206,12 +190,14 @@ export function ProtectedShell({ children, title, subtitle }: { children: React.
         <nav>
           {navTree.map((entry) =>
             isGroup(entry) ? (
-              <NavGroupItem key={entry.label} group={entry} pathname={pathname} />
+              <div className="app-nav-group" key={entry.label}>
+                <div className="app-nav-group-label">{entry.label}</div>
+                {entry.children.map((child) => (
+                  <NavLink key={child.href} item={child} pathname={pathname} />
+                ))}
+              </div>
             ) : (
-              <a key={entry.href} href={entry.href} className={pathname === entry.href ? "active" : undefined}>
-                <span className="nav-icon">{entry.icon}</span>
-                {entry.label}
-              </a>
+              <NavLink key={entry.href} item={entry} pathname={pathname} />
             ),
           )}
         </nav>
@@ -225,11 +211,24 @@ export function ProtectedShell({ children, title, subtitle }: { children: React.
             </div>
           </div>
           <button className="secondary" onClick={logout} style={{ width: "100%", marginTop: 10 }}>
+            <Icon name="logout" width={15} height={15} style={{ marginRight: 6, verticalAlign: -2 }} />
             Log out
           </button>
         </div>
       </aside>
       <main className="app-main">
+        <div className="app-topbar">
+          <div className="app-topbar-search">
+            <Icon name="search" />
+            <input type="search" placeholder="Search employees, trips, vendors..." />
+          </div>
+          <div className="app-topbar-actions">
+            <button className="app-topbar-icon-btn" type="button" aria-label="Notifications">
+              <Icon name="bell" />
+              <span className="badge-dot" />
+            </button>
+          </div>
+        </div>
         {(title || subtitle) && (
           <div className="page-header">
             {title && <h2>{title}</h2>}
