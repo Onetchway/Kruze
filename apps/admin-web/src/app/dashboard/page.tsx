@@ -96,6 +96,9 @@ export default function DashboardPage() {
           <Tile value={data.platformUsage.openExceptions} label="Open planning exceptions" warning={data.platformUsage.openExceptions > 0} />
           <Tile value={data.platformUsage.openSafetyEvents} label="Open safety events" warning={data.platformUsage.openSafetyEvents > 0} />
         </div>
+        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          <a href="/operations">Live Operations breakdown (Planned/Assigned/En Route/In Progress/Completed/Exceptions) →</a>
+        </p>
       </div>
 
       <div className="kpi-group">
