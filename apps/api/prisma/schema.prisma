@@ -1564,3 +1564,34 @@ model ApprovalRequest {
   @@index([resourceType, resourceId])
   @@map("approval_requests")
 }
+
+// ---------------------------------------------------------------------------
+// Platform-level key/value settings (Super Admin "Platform Settings" +
+// "Planning & Automation" config surfaces). Deliberately a generic
+// append/overwrite key-value row rather than a bespoke table per screen —
+// each key owns its own JSON shape and a small change history via
+// PlatformSettingHistory, not a full versioning UI.
+// ---------------------------------------------------------------------------
+
+model PlatformSetting {
+  key             String   @id
+  value           Json
+  updatedByUserId String?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@map("platform_settings")
+}
+
+/// Append-only audit trail of PlatformSetting changes, distinct from the
+/// generic AuditLog so a setting's own history can be listed cheaply.
+model PlatformSettingHistory {
+  id        String   @id @default(uuid())
+  key       String
+  value     Json
+  changedBy String?
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+  @@map("platform_setting_history")
+}
