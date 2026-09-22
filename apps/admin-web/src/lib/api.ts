@@ -457,6 +457,77 @@ export interface ApiKeyCreated extends ApiKeyRow {
   secret: string;
 }
 
+// --- Automation Decision Log -------------------------------------------------
+
+export interface DecisionLogCandidate {
+  type: "DRIVER" | "VEHICLE" | "GUARD";
+  id: string;
+  label: string;
+}
+
+export interface DecisionLogRejected extends DecisionLogCandidate {
+  reason: string;
+}
+
+export interface DecisionLogSelectedSlot {
+  type?: string;
+  id: string;
+  label?: string;
+  reason: string;
+}
+
+export interface DecisionLogTripSummary {
+  id: string;
+  globalTripId: string;
+  status: string;
+  scheduledStartAt: string;
+  corporateOrg: { id: string; displayName: string };
+  vendorOrg: { id: string; displayName: string } | null;
+}
+
+export interface DecisionLogEntry {
+  id: string;
+  tripId: string;
+  corporateOrgId: string;
+  algorithmVersion: string;
+  candidateResources: DecisionLogCandidate[];
+  rejectedResources: DecisionLogRejected[];
+  selectedResource: { driver?: DecisionLogSelectedSlot; vehicle?: DecisionLogSelectedSlot; guard?: DecisionLogSelectedSlot | null };
+  constraintsEvaluated: string[];
+  createdAt: string;
+  trip: DecisionLogTripSummary;
+}
+
+// --- Dashboard alerts ---------------------------------------------------------
+
+export type AlertSeverity = "CRITICAL" | "HIGH" | "MEDIUM";
+
+export interface PlatformAlert {
+  id: string;
+  severity: AlertSeverity;
+  category: string;
+  title: string;
+  detail: string;
+  occurredAt: string;
+  url: string;
+}
+
+export interface PlatformAlertsFeed {
+  critical: PlatformAlert[];
+  high: PlatformAlert[];
+  medium: PlatformAlert[];
+}
+
+// --- Global search --------------------------------------------------------------
+
+export interface SearchResult {
+  type: string;
+  id: string;
+  label: string;
+  sublabel: string;
+  url: string;
+}
+
 // --- API calls ----------------------------------------------------------------
 
 export const api = {
@@ -633,4 +704,17 @@ export const api = {
   createApiKey: (token: string, input: { name: string; organisationId?: string; scopes?: string[]; expiresAt?: string }) =>
     apiFetch<ApiKeyCreated>("/platform/api-keys", { method: "POST", body: input, token }),
   revokeApiKey: (token: string, id: string) => apiFetch<ApiKeyRow>(`/platform/api-keys/${id}/revoke`, { method: "POST", token }),
+
+  // --- Automation Decision Log -----------------------------------------------
+  listDecisionLog: (token: string, params: { tripId?: string; corporateOrgId?: string; q?: string; cursor?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
+    return apiFetch<{ entries: DecisionLogEntry[]; nextCursor: string | null }>(`/platform/decision-log${qs ? `?${qs}` : ""}`, { token });
+  },
+  getDecisionLogEntry: (token: string, id: string) => apiFetch<DecisionLogEntry>(`/platform/decision-log/${id}`, { token }),
+
+  // --- Dashboard alerts ----------------------------------------------------------
+  getDashboardAlerts: (token: string) => apiFetch<PlatformAlertsFeed>("/platform/dashboard/alerts", { token }),
+
+  // --- Global search -----------------------------------------------------------------
+  globalSearch: (token: string, q: string) => apiFetch<Record<string, SearchResult[]>>(`/platform/search?q=${encodeURIComponent(q)}`, { token }),
 };

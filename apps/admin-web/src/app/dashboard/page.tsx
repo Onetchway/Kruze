@@ -2,8 +2,55 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, PlatformDashboardOverview } from "@/lib/api";
+import { api, PlatformDashboardOverview, PlatformAlertsFeed, PlatformAlert, AlertSeverity } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
+
+const SEVERITY_BADGE: Record<AlertSeverity, string> = { CRITICAL: "danger", HIGH: "warning", MEDIUM: "info" };
+
+function AlertRow({ alert }: { alert: PlatformAlert }) {
+  return (
+    <a
+      href={alert.url}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        alignItems: "flex-start",
+        padding: "8px 0",
+        borderTop: "1px solid var(--border)",
+        color: "var(--text)",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>{alert.title}</div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {alert.category} · {alert.detail}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-faint)", whiteSpace: "nowrap" }}>{new Date(alert.occurredAt).toLocaleString()}</div>
+    </a>
+  );
+}
+
+function AlertBucket({ title, severity, alerts }: { title: string; severity: AlertSeverity; alerts: PlatformAlert[] }) {
+  return (
+    <div className="card" style={{ flex: 1, minWidth: 260 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h3 style={{ margin: 0 }}>{title}</h3>
+        <span className={`badge ${SEVERITY_BADGE[severity]}`}>{alerts.length}</span>
+      </div>
+      {alerts.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 0 }}>No {title.toLowerCase()} right now.</p>
+      ) : (
+        <div>
+          {alerts.map((a) => (
+            <AlertRow key={a.id} alert={a} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Tile({ value, label, warning }: { value: string | number; label: string; warning?: boolean }) {
   return (
@@ -17,6 +64,7 @@ function Tile({ value, label, warning }: { value: string | number; label: string
 export default function DashboardPage() {
   const { session } = useAuth();
   const [data, setData] = useState<PlatformDashboardOverview | null>(null);
+  const [alerts, setAlerts] = useState<PlatformAlertsFeed | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,6 +73,10 @@ export default function DashboardPage() {
       .getDashboard(session.accessToken)
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load dashboard"));
+    api
+      .getDashboardAlerts(session.accessToken)
+      .then(setAlerts)
+      .catch(() => setAlerts(null));
   }, [session]);
 
   if (error) {
@@ -52,6 +104,17 @@ export default function DashboardPage() {
         Who is using Kruze, is it healthy, is transport operating, is it making money, is it secure — all real
         database aggregates.
       </p>
+
+      {alerts && (
+        <div className="kpi-group">
+          <h3>Alerts</h3>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <AlertBucket title="Critical" severity="CRITICAL" alerts={alerts.critical} />
+            <AlertBucket title="High" severity="HIGH" alerts={alerts.high} />
+            <AlertBucket title="Medium" severity="MEDIUM" alerts={alerts.medium} />
+          </div>
+        </div>
+      )}
 
       <div className="kpi-group">
         <h3>1. Who is using Kruze — Organisations</h3>

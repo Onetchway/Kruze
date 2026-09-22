@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { api, SearchResult } from "@/lib/api";
 import { Icon, NavIcon, IconName } from "@/components/icons";
 
 interface NavLeaf {
@@ -36,6 +37,7 @@ const NAV_TREE: NavEntry[] = [
     label: "Operations",
     children: [
       { href: "/planning", label: "Planning & Automation", icon: "settings" },
+      { href: "/decision-log", label: "Decision Log", icon: "list" },
       { href: "/compliance", label: "Safety & Compliance", icon: "shield" },
     ],
   },
@@ -74,6 +76,84 @@ function NavLink({ item, pathname }: { item: NavLeaf; pathname: string }) {
       <NavIcon name={item.icon} />
       {item.label}
     </a>
+  );
+}
+
+function GlobalSearch() {
+  const { session } = useAuth();
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<Record<string, SearchResult[]> | null>(null);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!session || q.trim().length < 2) {
+      setResults(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      setLoading(true);
+      api
+        .globalSearch(session.accessToken, q.trim())
+        .then((res) => {
+          setResults(res);
+          setOpen(true);
+        })
+        .catch(() => setResults({}))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [q, session]);
+
+  const groups = results ? Object.entries(results) : [];
+  const totalResults = groups.reduce((sum, [, rows]) => sum + rows.length, 0);
+
+  return (
+    <div className="app-topbar-search" ref={containerRef}>
+      <Icon name="search" />
+      <input
+        type="search"
+        placeholder="Search organisations, users, trips..."
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onFocus={() => {
+          if (results) setOpen(true);
+        }}
+      />
+      {open && q.trim().length >= 2 && (
+        <div className="app-topbar-search-results">
+          {loading && <div className="app-topbar-search-empty">Searching…</div>}
+          {!loading && totalResults === 0 && <div className="app-topbar-search-empty">No matches for &quot;{q}&quot;.</div>}
+          {!loading &&
+            groups.map(([type, rows]) => (
+              <div key={type}>
+                <div className="app-topbar-search-group">{type}</div>
+                {rows.map((r) => (
+                  <a key={`${type}-${r.id}`} className="app-topbar-search-row" href={r.url} onClick={() => setOpen(false)}>
+                    <span className="label">{r.label}</span>
+                    <span className="sublabel">{r.sublabel}</span>
+                  </a>
+                ))}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -122,10 +202,7 @@ export function ProtectedShell({ children }: { children: React.ReactNode }) {
       </aside>
       <main className="app-main">
         <div className="app-topbar">
-          <div className="app-topbar-search">
-            <Icon name="search" />
-            <input type="search" placeholder="Search organisations, users, trips..." />
-          </div>
+          <GlobalSearch />
           <div className="app-topbar-actions">
             <button className="app-topbar-icon-btn" type="button" aria-label="Notifications">
               <Icon name="bell" />
