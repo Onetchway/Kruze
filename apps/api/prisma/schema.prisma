@@ -945,6 +945,33 @@ model PlanException {
   @@map("plan_exceptions")
 }
 
+/// Automation Decision Log (spec §44/§59) — a structured record of *why*
+/// the planning engine picked a given driver/vehicle/guard for a trip:
+/// every candidate it considered, why each rejected one was rejected, and
+/// why the winner won. Written once per successfully-created trip by
+/// PlanningService; trips that couldn't be created (see PlanException)
+/// have nothing to log a winner for.
+model PlanningDecisionLog {
+  id                  String   @id @default(uuid())
+  tripId              String   @unique
+  corporateOrgId      String
+  algorithmVersion    String
+  /// [{ type: "DRIVER"|"VEHICLE"|"GUARD", id, label }] — everything considered, winner included.
+  candidateResources  Json
+  /// [{ type, id, label, reason }] — every candidate NOT chosen, with why.
+  rejectedResources   Json
+  /// { type, id, label, reason } for each resource slot actually assigned (driver/vehicle/guard).
+  selectedResource    Json
+  /// Names of the hard constraints actually evaluated during this assignment run.
+  constraintsEvaluated Json
+  createdAt           DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id])
+
+  @@index([corporateOrgId, createdAt])
+  @@map("planning_decision_logs")
+}
+
 // ---------------------------------------------------------------------------
 // Trips
 // ---------------------------------------------------------------------------
@@ -1009,6 +1036,7 @@ model Trip {
   locationEvents LocationEvent[]
   incidents      Incident[]
   tripCharge     TripCharge?
+  decisionLog    PlanningDecisionLog?
 
   @@index([corporateOrgId, status])
   @@index([vendorOrgId, status])

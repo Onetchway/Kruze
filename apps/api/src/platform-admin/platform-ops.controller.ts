@@ -15,6 +15,7 @@ import { PlatformNotificationService } from "./platform-notification.service";
 import { PlatformSupportService } from "./platform-support.service";
 import { PlatformFeatureFlagService } from "./platform-feature-flag.service";
 import { PlatformApiKeyService } from "./platform-api-key.service";
+import { PlatformDecisionLogService } from "./platform-decision-log.service";
 import { CreateNotificationTemplateDto, UpdateNotificationTemplateDto } from "./dto/notification-template.dto";
 import {
   AddSupportCaseEventDto,
@@ -152,6 +153,30 @@ export class PlatformOperationsController {
     @Query("limit") limit?: string,
   ) {
     return this.service.listTrips({ status, corporateOrgId, vendorOrgId, cursor, limit: limit ? Number(limit) : undefined });
+  }
+}
+
+/** Automation Decision Log (spec §44/§59) — same visibility as Transport Operations. */
+@Controller("platform/decision-log")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(...SUPER_ADMIN_ROLES)
+export class PlatformDecisionLogController {
+  constructor(private readonly service: PlatformDecisionLogService) {}
+
+  @Get()
+  list(
+    @Query("tripId") tripId?: string,
+    @Query("corporateOrgId") corporateOrgId?: string,
+    @Query("q") q?: string,
+    @Query("cursor") cursor?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.service.list({ tripId, corporateOrgId, q, cursor, limit: limit ? Number(limit) : undefined });
+  }
+
+  @Get(":id")
+  get(@Param("id") id: string) {
+    return this.service.get(id);
   }
 }
 

@@ -16,8 +16,10 @@ import {
   PlatformSupportController,
   PlatformFeatureFlagController,
   PlatformApiKeyController,
+  PlatformDecisionLogController,
 } from "./platform-ops.controller";
 import { PlatformDashboardService } from "./platform-dashboard.service";
+import { PlatformAlertsService } from "./platform-alerts.service";
 import { PlatformUserService } from "./platform-user.service";
 import { PlatformAuditService } from "./platform-audit.service";
 import { PlatformSecurityService } from "./platform-security.service";
@@ -30,6 +32,9 @@ import { PlatformNotificationService } from "./platform-notification.service";
 import { PlatformSupportService } from "./platform-support.service";
 import { PlatformFeatureFlagService } from "./platform-feature-flag.service";
 import { PlatformApiKeyService } from "./platform-api-key.service";
+import { PlatformDecisionLogService } from "./platform-decision-log.service";
+import { PlatformSearchService } from "./platform-search.service";
+import { PlatformSearchController } from "./platform-search.controller";
 import { IdentityModule } from "../identity/identity.module";
 
 @Module({
@@ -49,9 +54,12 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformSupportController,
     PlatformFeatureFlagController,
     PlatformApiKeyController,
+    PlatformDecisionLogController,
+    PlatformSearchController,
   ],
   providers: [
     PlatformDashboardService,
+    PlatformAlertsService,
     PlatformUserService,
     PlatformAuditService,
     PlatformSecurityService,
@@ -64,6 +72,8 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformSupportService,
     PlatformFeatureFlagService,
     PlatformApiKeyService,
+    PlatformDecisionLogService,
+    PlatformSearchService,
   ],
 })
 export class PlatformAdminModule {}

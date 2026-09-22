@@ -14,6 +14,7 @@ import { RolesGuard } from "../authz/roles.guard";
 import { Roles } from "../authz/roles.decorator";
 import { Audited } from "../audit/audited.decorator";
 import { PlatformDashboardService } from "./platform-dashboard.service";
+import { PlatformAlertsService } from "./platform-alerts.service";
 import { PlatformUserService } from "./platform-user.service";
 import { PlatformAuditService } from "./platform-audit.service";
 import { PlatformSecurityService } from "./platform-security.service";
@@ -35,11 +36,20 @@ export class PlatformRolePermissionsController {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(...SUPER_ADMIN_ROLES)
 export class PlatformDashboardController {
-  constructor(private readonly dashboard: PlatformDashboardService) {}
+  constructor(
+    private readonly dashboard: PlatformDashboardService,
+    private readonly alerts: PlatformAlertsService,
+  ) {}
 
   @Get()
   overview() {
     return this.dashboard.getOverview();
+  }
+
+  /** Prioritized alert feed (spec §9), Critical/High/Medium — see PlatformAlertsService for what each bucket detects. */
+  @Get("alerts")
+  getAlerts() {
+    return this.alerts.getAlerts();
   }
 }
 
