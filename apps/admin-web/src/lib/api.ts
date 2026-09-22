@@ -528,6 +528,22 @@ export interface SearchResult {
   url: string;
 }
 
+// --- Data export ------------------------------------------------------------
+
+export type ExportJobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export interface ExportJob {
+  id: string;
+  requestedByUserId: string;
+  entityType: string;
+  status: ExportJobStatus;
+  resultFileKey: string | null;
+  errorMessage: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 // --- API calls ----------------------------------------------------------------
 
 export const api = {
@@ -717,4 +733,22 @@ export const api = {
 
   // --- Global search -----------------------------------------------------------------
   globalSearch: (token: string, q: string) => apiFetch<Record<string, SearchResult[]>>(`/platform/search?q=${encodeURIComponent(q)}`, { token }),
+
+  // --- Data export --------------------------------------------------------------
+  listExports: (token: string) => apiFetch<ExportJob[]>("/platform/exports", { token }),
+  createExport: (token: string, entityType: string) => apiFetch<ExportJob>("/platform/exports", { method: "POST", body: { entityType }, token }),
+  downloadExport: async (token: string, id: string, fileName: string) => {
+    const res = await fetch(`${API_BASE}/platform/exports/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, payload.message ?? res.statusText);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

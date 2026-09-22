@@ -972,6 +972,35 @@ model PlanningDecisionLog {
   @@map("planning_decision_logs")
 }
 
+enum ExportJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+/// Data Export system (spec §68), deliberately minimal: this pass runs the
+/// export synchronously (no worker/queue infra) but models the job
+/// lifecycle correctly so a real async worker can be dropped in later
+/// without changing the shape callers see. `resultFileKey` is a filename
+/// under apps/api's local (not-committed) scratch-exports directory, not a
+/// signed cloud URL — the download endpoint checks `expiresAt` itself.
+model ExportJob {
+  id               String          @id @default(uuid())
+  requestedByUserId String
+  entityType       String
+  scopeFilters     Json?
+  status           ExportJobStatus @default(PENDING)
+  resultFileKey    String?
+  errorMessage     String?
+  expiresAt        DateTime?
+  createdAt        DateTime        @default(now())
+  completedAt      DateTime?
+
+  @@index([requestedByUserId, createdAt])
+  @@map("export_jobs")
+}
+
 // ---------------------------------------------------------------------------
 // Trips
 // ---------------------------------------------------------------------------

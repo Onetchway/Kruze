@@ -13,3 +13,4 @@ apps/api/generated/
 *.tsbuildinfo
 .next/
 next-env.d.ts
+apps/api/scratch-exports/

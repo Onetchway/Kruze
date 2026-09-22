@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { api, ApiError, Organisation } from "@/lib/api";
+import { api, ApiError, Organisation, ExportJob } from "@/lib/api";
 import { ProtectedShell } from "@/components/ProtectedShell";
 
 const ORG_ROLES = ["CORPORATE", "FLEET_OPERATOR", "VENDOR", "SUB_VENDOR"];
@@ -39,6 +39,9 @@ export default function OrganisationsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [exportJob, setExportJob] = useState<ExportJob | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function reload() {
     if (!session) return;
@@ -104,12 +107,55 @@ export default function OrganisationsPage() {
 
   const pendingCount = organisations.filter((o) => o.status === "PENDING_APPROVAL").length;
 
+  async function handleExport() {
+    if (!session) return;
+    setExportBusy(true);
+    setExportError(null);
+    setExportJob(null);
+    try {
+      const job = await api.createExport(session.accessToken, "ORGANISATION");
+      setExportJob(job);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : "Failed to create export");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handleDownload() {
+    if (!session || !exportJob) return;
+    try {
+      await api.downloadExport(session.accessToken, exportJob.id, `organisations-${exportJob.id}.csv`);
+    } catch (err) {
+      setExportError(err instanceof ApiError ? err.message : "Failed to download export");
+    }
+  }
+
   return (
     <ProtectedShell>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ marginTop: 0 }}>Organisations</h2>
-        <button onClick={() => setShowCreate((v) => !v)}>{showCreate ? "Cancel" : "+ New tenant"}</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="secondary" onClick={handleExport} disabled={exportBusy}>
+            {exportBusy ? "Exporting…" : "Export CSV"}
+          </button>
+          <button onClick={() => setShowCreate((v) => !v)}>{showCreate ? "Cancel" : "+ New tenant"}</button>
+        </div>
       </div>
+
+      {exportError && <p className="error-text">{exportError}</p>}
+      {exportJob && exportJob.status === "COMPLETED" && (
+        <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            Export ready ({new Date(exportJob.createdAt).toLocaleString()})
+            {exportJob.expiresAt ? ` — link expires ${new Date(exportJob.expiresAt).toLocaleString()}` : ""}
+          </span>
+          <button onClick={handleDownload}>Download CSV</button>
+        </div>
+      )}
+      {exportJob && exportJob.status === "FAILED" && (
+        <p className="error-text">Export failed: {exportJob.errorMessage}</p>
+      )}
 
       <div className="stat-row">
         <div className="stat-tile">

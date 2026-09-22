@@ -35,6 +35,8 @@ import { PlatformApiKeyService } from "./platform-api-key.service";
 import { PlatformDecisionLogService } from "./platform-decision-log.service";
 import { PlatformSearchService } from "./platform-search.service";
 import { PlatformSearchController } from "./platform-search.controller";
+import { PlatformExportService } from "./platform-export.service";
+import { PlatformExportController } from "./platform-export.controller";
 import { IdentityModule } from "../identity/identity.module";
 
 @Module({
@@ -56,6 +58,7 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformApiKeyController,
     PlatformDecisionLogController,
     PlatformSearchController,
+    PlatformExportController,
   ],
   providers: [
     PlatformDashboardService,
@@ -74,6 +77,7 @@ import { IdentityModule } from "../identity/identity.module";
     PlatformApiKeyService,
     PlatformDecisionLogService,
     PlatformSearchService,
+    PlatformExportService,
   ],
 })
 export class PlatformAdminModule {}
